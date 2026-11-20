@@ -1,0 +1,15 @@
+<resources>
+    <style name="Theme.StudyEnforcer" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:statusBarColor">#FAF8F5</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#FAF8F5</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">#FAF8F5</item>
+    </style>
+    <style name="Theme.StudyEnforcer.Lock" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:windowBackground">#FAF8F5</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+</resources>

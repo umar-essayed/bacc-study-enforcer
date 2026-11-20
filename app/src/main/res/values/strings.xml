@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Al-Bacc Enforcer</string>
+    <string name="accessibility_service_description">Enforces high-discipline study sessions by intercepting distracting applications and preventing unauthorized exits during active lockouts.</string>
+    <string name="notification_channel_name">Study Enforcement</string>
+    <string name="notification_channel_desc">Active study streaks, pop-up countdowns, and lockout status.</string>
+    <string name="service_running_title">Enforcement Engine Active</string>
+    <string name="service_running_desc">Streak: %1$d days • Next check in %2$d min</string>
+</resources>

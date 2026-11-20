@@ -1,0 +1,10 @@
+<resources>
+    <color name="canvas_alabaster">#FAF8F5</color>
+    <color name="surface_white">#FFFFFF</color>
+    <color name="border_hairline">#E5E5EA</color>
+    <color name="ink_titanium">#1A1A1A</color>
+    <color name="ink_space_gray">#6E6E73</color>
+    <color name="accent_emerald">#10B981</color>
+    <color name="accent_gold">#C5A059</color>
+    <color name="alert_crimson">#EF4444</color>
+</resources>

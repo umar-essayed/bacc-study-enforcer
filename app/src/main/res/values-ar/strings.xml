@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">منظومة المتفوق</string>
+    <string name="accessibility_service_description">تأمين جلسات المذاكرة وحجب التطبيقات المشتتة ومنع تجاوز القفل أثناء فترات التركيز والعقوبات.</string>
+    <string name="notification_channel_name">محرك الانضباط الدراسي</string>
+    <string name="notification_channel_desc">إشعارات التتابع، العد التنازلي للاختبارات السريعة، وحالة القفل.</string>
+    <string name="service_running_title">محرك الانضباط نشط</string>
+    <string name="service_running_desc">سلسلة الالتزام: %1$d أيام • الاختبار القادم خلال %2$d دقيقة</string>
+</resources>
