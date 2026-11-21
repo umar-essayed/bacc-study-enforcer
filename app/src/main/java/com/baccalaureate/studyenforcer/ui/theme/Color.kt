@@ -11,6 +11,7 @@ val InkSpaceGray = Color(0xFF6E6E73)
 val AccentEmerald = Color(0xFF10B981)
 val AccentGold = Color(0xFFC5A059)
 val AlertCrimson = Color(0xFFEF4444)
+val AccentCrimson = AlertCrimson
 
 // Subtle helpers
 val SurfaceSubtle = Color(0xFFF2F2F7)

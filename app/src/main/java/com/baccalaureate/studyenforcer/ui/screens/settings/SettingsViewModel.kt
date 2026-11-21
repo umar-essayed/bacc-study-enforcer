@@ -38,7 +38,8 @@ class SettingsViewModel @Inject constructor(
     fun importQuestionsFromJson(json: String) {
         viewModelScope.launch {
             _isImporting.value = true
-            val count = repository.importQuestionsDirectly(json)
+            val result = repository.importQuestionsFromJson(json)
+            val count = result.getOrDefault(0)
             _isImporting.value = false
             if (count > 0) {
                 _statusMessage.value = "تم استيراد $count سؤالاً بنجاح إلى بنك الأسئلة"

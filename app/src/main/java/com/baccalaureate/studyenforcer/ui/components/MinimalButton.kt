@@ -30,7 +30,13 @@ import com.baccalaureate.studyenforcer.ui.theme.SurfaceWhite
 enum class ButtonStyleVariant {
     PRIMARY,
     SECONDARY,
-    DESTRUCTIVE
+    DESTRUCTIVE;
+
+    companion object {
+        val Primary = PRIMARY
+        val Secondary = SECONDARY
+        val Destructive = DESTRUCTIVE
+    }
 }
 
 @Composable
@@ -40,8 +46,11 @@ fun MinimalButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     height: Dp = 48.dp,
-    variant: ButtonStyleVariant = ButtonStyleVariant.PRIMARY
+    variant: ButtonStyleVariant = ButtonStyleVariant.PRIMARY,
+    style: ButtonStyleVariant = variant
 ) {
+    val effectiveVariant = if (style != ButtonStyleVariant.PRIMARY) style else variant
+
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -49,7 +58,7 @@ fun MinimalButton(
         label = "button_scale"
     )
 
-    val (containerColor, contentColor, border) = when (variant) {
+    val (containerColor, contentColor, border) = when (effectiveVariant) {
         ButtonStyleVariant.PRIMARY -> Triple(
             AccentEmerald,
             SurfaceWhite,
@@ -70,21 +79,21 @@ fun MinimalButton(
     Button(
         onClick = onClick,
         modifier = modifier
-            .fillMaxWidth()
             .height(height)
             .scale(scale),
         enabled = enabled,
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
-            disabledContainerColor = BorderHairline,
-            disabledContentColor = InkTitanium.copy(alpha = 0.4f)
+            disabledContainerColor = containerColor.copy(alpha = 0.5f),
+            disabledContentColor = contentColor.copy(alpha = 0.5f)
         ),
         border = border,
         elevation = ButtonDefaults.buttonElevation(
             defaultElevation = 0.dp,
-            pressedElevation = 0.dp
+            pressedElevation = 0.dp,
+            disabledElevation = 0.dp
         ),
         contentPadding = PaddingValues(horizontal = 20.dp),
         interactionSource = interactionSource
@@ -92,7 +101,8 @@ fun MinimalButton(
         Text(
             text = text,
             fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            color = contentColor
         )
     }
 }

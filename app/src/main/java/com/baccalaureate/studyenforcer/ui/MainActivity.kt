@@ -203,7 +203,12 @@ fun MainScaffold(
 
                 composable(Screen.Subjects.route) {
                     val viewModel: SubjectsViewModel = hiltViewModel()
-                    SubjectsScreen(viewModel = viewModel)
+                    SubjectsScreen(
+                        viewModel = viewModel,
+                        onSolveQuestion = { questionId ->
+                            navController.navigate(Screen.ActiveQuiz.createRoute(questionId))
+                        }
+                    )
                 }
 
                 composable(Screen.FocusLocker.route) {
