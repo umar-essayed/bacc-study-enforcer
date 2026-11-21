@@ -25,7 +25,7 @@ import com.baccalaureate.studyenforcer.data.local.entity.UserStatsEntity
         GrammarMatchPairEntity::class,
         ErrorHunterQuestionEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

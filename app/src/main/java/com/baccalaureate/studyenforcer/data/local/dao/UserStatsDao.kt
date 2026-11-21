@@ -21,6 +21,9 @@ interface UserStatsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateStats(stats: UserStatsEntity)
 
+    @Query("UPDATE user_stats SET userName = :name, isOnboardingCompleted = 1 WHERE id = 1")
+    suspend fun completeOnboarding(name: String)
+
     @Query("UPDATE user_stats SET strikesCount = :strikes WHERE id = 1")
     suspend fun updateStrikes(strikes: Int)
 
@@ -45,7 +48,6 @@ interface UserStatsDao {
         val newTotal = currentStats.totalAnswered + 1
         val newCorrect = if (isCorrect) currentStats.correctCount + 1 else currentStats.correctCount
         val newStrikes = if (isCorrect) {
-            // Correct answer resets strikes rolling counter
             0
         } else {
             currentStats.strikesCount + 1

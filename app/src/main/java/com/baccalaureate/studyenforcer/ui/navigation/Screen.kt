@@ -13,11 +13,26 @@ sealed class Screen(val route: String, val titleAr: String, val titleEn: String,
     object FocusLocker : Screen("locker", "القفل", "Locker", Icons.Outlined.LockClock)
     object Games : Screen("games", "التدريب", "Games", Icons.Outlined.Bolt)
 
-    // Sub-screens
+    // Sub-screens & Workflows
     object Settings : Screen("settings", "الإعدادات", "Settings", Icons.Outlined.Today)
     object SpeedGrammar : Screen("speed_grammar", "طابق الإعراب", "Grammar Match", Icons.Outlined.Bolt)
     object ErrorHunter : Screen("error_hunter", "صائد الأخطاء", "Error Hunter", Icons.Outlined.Bolt)
     object Permissions : Screen("permissions", "الصلاحيات", "Permissions", Icons.Outlined.LockClock)
+    object Onboarding : Screen("onboarding", "البداية", "Onboarding", Icons.Outlined.Today)
+    object Policy : Screen("policy", "سياسة الانضباط", "Policy", Icons.Outlined.LockClock)
+    object ActiveQuiz : Screen("quiz/{questionId}", "الاختبار", "Quiz", Icons.Outlined.Today) {
+        fun createRoute(questionId: Long = -1L): String = "quiz/$questionId"
+    }
+    object TrueFalse : Screen("true_false?subject={subject}&topic={topic}", "صح أم خطأ", "True / False", Icons.Outlined.Bolt) {
+        fun createRoute(subject: String = "ALL", topic: String? = null): String {
+            return if (topic != null) "true_false?subject=$subject&topic=$topic" else "true_false?subject=$subject"
+        }
+    }
+    object SyntaxFill : Screen("syntax_fill?subject={subject}&topic={topic}", "أكمل الفراغ", "Syntax Fill", Icons.Outlined.Bolt) {
+        fun createRoute(subject: String = "ALL", topic: String? = null): String {
+            return if (topic != null) "syntax_fill?subject=$subject&topic=$topic" else "syntax_fill?subject=$subject"
+        }
+    }
 }
 
 val BottomNavItems = listOf(

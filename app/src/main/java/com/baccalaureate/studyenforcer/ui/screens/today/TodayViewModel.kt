@@ -36,11 +36,4 @@ class TodayViewModel @Inject constructor(
         }
         context.startService(intent)
     }
-
-    fun consumeSnoozeToken(onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val success = repository.consumeSnoozeToken()
-            onResult(success)
-        }
-    }
 }

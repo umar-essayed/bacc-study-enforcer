@@ -9,7 +9,6 @@ import com.baccalaureate.studyenforcer.data.local.entity.LockerStateEntity
 import com.baccalaureate.studyenforcer.data.local.entity.QuestionEntity
 import com.baccalaureate.studyenforcer.data.local.entity.SubjectProgressEntity
 import com.baccalaureate.studyenforcer.data.local.entity.UserStatsEntity
-import com.baccalaureate.studyenforcer.data.remote.SupabaseApi
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +22,6 @@ import java.util.Locale
 class StudyRepository(
     private val context: Context,
     private val db: AppDatabase,
-    private val supabaseApi: SupabaseApi,
     private val gson: Gson
 ) {
     private val questionDao = db.questionDao()
@@ -36,9 +34,20 @@ class StudyRepository(
     fun getQuestionsBySubject(subject: String): Flow<List<QuestionEntity>> =
         questionDao.getQuestionsBySubject(subject)
 
+    fun getQuestionsBySubjectAndTopic(subject: String, topic: String): Flow<List<QuestionEntity>> =
+        questionDao.getQuestionsBySubjectAndTopic(subject, topic)
+
+    fun getTopicsForSubject(subject: String): Flow<List<String>> =
+        questionDao.getTopicsForSubject(subject)
+
+    fun getMistakeQuestions(): Flow<List<QuestionEntity>> = questionDao.getMistakeQuestions()
+
     suspend fun getRandomQuestion(): QuestionEntity? = questionDao.getRandomQuestion()
     suspend fun getRandomQuestionBySubject(subject: String): QuestionEntity? =
         questionDao.getRandomQuestionBySubject(subject)
+
+    suspend fun getRandomQuestionBySubjectAndTopic(subject: String, topic: String): QuestionEntity? =
+        questionDao.getRandomQuestionBySubjectAndTopic(subject, topic)
 
     fun getUserStatsFlow(): Flow<UserStatsEntity?> = userStatsDao.getUserStatsFlow()
     fun getAllSubjectProgress(): Flow<List<SubjectProgressEntity>> =
@@ -58,18 +67,49 @@ class StudyRepository(
         blockedAppDao.insertApp(BlockedAppEntity(packageName = packageName, appName = appName, isBlocked = true))
     }
 
+    suspend fun completeOnboarding(studentName: String) {
+        val currentStats = userStatsDao.getUserStats() ?: UserStatsEntity()
+        userStatsDao.insertOrUpdateStats(
+            currentStats.copy(
+                userName = studentName.ifBlank { "بطل الثانوية" },
+                isOnboardingCompleted = true
+            )
+        )
+    }
+
+    suspend fun addQuestionDirectly(question: QuestionEntity) {
+        questionDao.insertQuestion(question)
+    }
+
+    suspend fun importQuestionsFromJson(jsonString: String): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val type = object : TypeToken<List<QuestionEntity>>() {}.type
+            val list: List<QuestionEntity> = gson.fromJson(jsonString, type)
+            if (list.isNotEmpty()) {
+                questionDao.insertQuestions(list)
+                Result.success(list.size)
+            } else {
+                Result.failure(IllegalArgumentException("قائمة الأسئلة فارغة"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /**
-     * Records user answer and enforces 3-strikes rule.
-     * If 3 consecutive wrong answers occur, Penalty Mode is activated for 60 minutes.
+     * Records user answer, updates question solved status & enforces 3-strikes rule.
      */
     suspend fun recordAnswer(question: QuestionEntity, selectedOptionIndex: Int): AnswerResult {
         val isCorrect = question.correctOptionIndex == selectedOptionIndex
+
+        // Mark question in local DB so it unlocks in the Question Bank and tracks mistakes
+        questionDao.markQuestionAnswered(question.id, isCorrect)
+
         userStatsDao.recordAnswer(question.subject, isCorrect)
 
         val updatedStats = userStatsDao.getUserStats() ?: UserStatsEntity()
         if (updatedStats.strikesCount >= 3) {
-            // Activate Penalty Mode for 60 minutes
-            activatePenaltyMode(60, "تجاوز 3 إجابات خاطئة متتالية في الاختبار")
+            activatePenaltyMode(60, "تجاوز 3 ضربات متتالية في الاختبار")
             return AnswerResult(
                 isCorrect = false,
                 strikesCount = updatedStats.strikesCount,
@@ -86,9 +126,6 @@ class StudyRepository(
         )
     }
 
-    /**
-     * Activates strict study locker for a designated duration (minutes).
-     */
     suspend fun activateLocker(durationMinutes: Int) {
         val endTime = System.currentTimeMillis() + (durationMinutes * 60 * 1000L)
         lockerStateDao.setLockerState(
@@ -104,9 +141,6 @@ class StudyRepository(
         userStatsDao.addFocusMinutes(durationMinutes)
     }
 
-    /**
-     * Activates 3-Strikes Penalty Mode.
-     */
     suspend fun activatePenaltyMode(durationMinutes: Int = 60, reason: String = "عقوبة 3 ضربات متتالية") {
         val endTime = System.currentTimeMillis() + (durationMinutes * 60 * 1000L)
         lockerStateDao.setLockerState(
@@ -122,20 +156,14 @@ class StudyRepository(
     }
 
     suspend fun unlockPenaltyEarlyAfterReview() {
-        // Resets strikes and lifts lock
         userStatsDao.updateStrikes(0)
         lockerStateDao.clearLock()
     }
 
-    /**
-     * Attempts to consume 1 emergency snooze token (max 2 per day).
-     * Returns true if granted, false if exhausted.
-     */
     suspend fun consumeSnoozeToken(): Boolean {
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         var stats = userStatsDao.getUserStats() ?: UserStatsEntity()
 
-        // Daily reset check
         if (stats.lastSnoozeResetDate != today) {
             stats = stats.copy(snoozeTokensRemaining = 2, lastSnoozeResetDate = today)
             userStatsDao.insertOrUpdateStats(stats)
@@ -148,30 +176,14 @@ class StudyRepository(
         return false
     }
 
-    /**
-     * Syncs remote questions from Supabase PostgREST table into Room.
-     */
-    suspend fun syncWithSupabase(): Result<Int> {
-        return supabaseApi.fetchRemoteQuestions().mapCatching { remoteQuestions ->
-            if (remoteQuestions.isNotEmpty()) {
-                questionDao.insertQuestions(remoteQuestions)
-            }
-            remoteQuestions.size
-        }
-    }
-
     // --- Games API ---
-    suspend fun getGrammarMatchPairs(limit: Int = 6): List<GrammarMatchPairEntity> =
+    suspend fun getGrammarMatchPairs(limit: Int = 4): List<GrammarMatchPairEntity> =
         gamesDao.getRandomGrammarPairs(limit)
 
     suspend fun getErrorHunterQuestions(limit: Int = 10): List<ErrorHunterQuestionEntity> =
         gamesDao.getRandomErrorHunterQuestions(limit)
 
-    /**
-     * Seeds initial database from assets and defaults if empty.
-     */
     suspend fun initializeDatabaseIfNeeded() = withContext(Dispatchers.IO) {
-        // 1. Seed Questions from seed_questions.json
         if (questionDao.getQuestionCount() == 0) {
             try {
                 context.assets.open("seed_questions.json").use { stream ->
@@ -185,37 +197,36 @@ class StudyRepository(
             }
         }
 
-        // 2. Initialize User Stats & Subject Progress
         if (userStatsDao.getUserStats() == null) {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             userStatsDao.insertOrUpdateStats(
                 UserStatsEntity(
                     id = 1,
-                    streakDays = 5,
-                    totalAnswered = 18,
-                    correctCount = 16,
+                    userName = "طالب الثانوية",
+                    isOnboardingCompleted = false,
+                    streakDays = 1,
+                    totalAnswered = 0,
+                    correctCount = 0,
                     strikesCount = 0,
                     snoozeTokensRemaining = 2,
                     lastSnoozeResetDate = today,
-                    totalFocusMinutes = 90,
+                    totalFocusMinutes = 0,
                     lastActiveDate = today
                 )
             )
 
-            // Seed Subject Progress
             listOf("ARABIC", "ENGLISH", "HISTORY", "PROGRAMMING").forEach { sub ->
                 userStatsDao.insertSubjectProgress(
                     SubjectProgressEntity(
                         subject = sub,
                         totalQuestions = 15,
-                        answeredCount = 4,
-                        correctCount = 4
+                        answeredCount = 0,
+                        correctCount = 0
                     )
                 )
             }
         }
 
-        // 3. Initialize Default Blocked Apps (Social media / Distractions)
         if (blockedAppDao.getAppCount() == 0) {
             val defaultBlocked = listOf(
                 BlockedAppEntity("com.instagram.android", "Instagram", true),
@@ -230,7 +241,6 @@ class StudyRepository(
             blockedAppDao.insertApps(defaultBlocked)
         }
 
-        // 4. Seed Grammar Match Pairs if empty
         if (gamesDao.getGrammarPairCount() == 0) {
             val defaultPairs = listOf(
                 GrammarMatchPairEntity(wordOrPhrase = "أبو بكرٍ الصديق", grammaticalRule = "مبتدأ مرفوع بالواو (أسماء خمسة)", category = "ARABIC_NAHW"),
@@ -246,7 +256,6 @@ class StudyRepository(
             gamesDao.insertGrammarPairs(defaultPairs)
         }
 
-        // 5. Seed Error Hunter Questions if empty
         if (gamesDao.getErrorHunterCount() == 0) {
             val defaultErrors = listOf(
                 ErrorHunterQuestionEntity(

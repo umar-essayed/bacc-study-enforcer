@@ -25,7 +25,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,10 +51,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.baccalaureate.studyenforcer.data.local.entity.QuestionEntity
 import com.baccalaureate.studyenforcer.ui.components.AppleCard
+import com.baccalaureate.studyenforcer.ui.components.ButtonStyleVariant
 import com.baccalaureate.studyenforcer.ui.components.HeaderBar
+import com.baccalaureate.studyenforcer.ui.components.MinimalButton
 import com.baccalaureate.studyenforcer.ui.theme.AccentEmerald
+import com.baccalaureate.studyenforcer.ui.theme.AlertCrimson
 import com.baccalaureate.studyenforcer.ui.theme.BorderHairline
 import com.baccalaureate.studyenforcer.ui.theme.CanvasAlabaster
+import com.baccalaureate.studyenforcer.ui.theme.CrimsonLight
 import com.baccalaureate.studyenforcer.ui.theme.EmeraldLight
 import com.baccalaureate.studyenforcer.ui.theme.InkSpaceGray
 import com.baccalaureate.studyenforcer.ui.theme.InkTitanium
@@ -56,8 +66,14 @@ import com.baccalaureate.studyenforcer.ui.theme.SurfaceSubtle
 import com.baccalaureate.studyenforcer.ui.theme.SurfaceWhite
 
 @Composable
-fun SubjectsScreen(viewModel: SubjectsViewModel) {
-    val selectedFilter by viewModel.selectedSubjectFilter.collectAsState()
+fun SubjectsScreen(
+    viewModel: SubjectsViewModel,
+    onSolveQuestion: (Long) -> Unit
+) {
+    val currentTab by viewModel.currentTab.collectAsState()
+    val selectedSubject by viewModel.selectedSubjectFilter.collectAsState()
+    val selectedTopic by viewModel.selectedTopicFilter.collectAsState()
+    val availableTopics by viewModel.availableTopics.collectAsState()
     val questions by viewModel.questions.collectAsState()
 
     Column(
@@ -66,39 +82,78 @@ fun SubjectsScreen(viewModel: SubjectsViewModel) {
             .background(CanvasAlabaster)
     ) {
         HeaderBar(
-            title = "بنك الأسئلة المعتمد",
-            subtitle = "${questions.size} سؤالاً تأسيسياً للمسار العلمي والذكاء الاصطناعي"
+            title = "بنك الأسئلة",
+            subtitle = "${questions.size} سؤالاً متاحاً"
         )
 
-        // Filter Pills
-        val filters = listOf(
+        // 2 Top Tabs: All vs Mistakes
+        TabRow(
+            selectedTabIndex = currentTab,
+            containerColor = SurfaceWhite,
+            contentColor = InkTitanium,
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[currentTab]),
+                    color = AccentEmerald,
+                    height = 2.5.dp
+                )
+            }
+        ) {
+            Tab(
+                selected = currentTab == 0,
+                onClick = { viewModel.setTab(0) },
+                text = {
+                    Text(
+                        text = "جميع الأسئلة",
+                        fontSize = 13.sp,
+                        fontWeight = if (currentTab == 0) FontWeight.Bold else FontWeight.Normal,
+                        color = if (currentTab == 0) InkTitanium else InkSpaceGray
+                    )
+                }
+            )
+            Tab(
+                selected = currentTab == 1,
+                onClick = { viewModel.setTab(1) },
+                text = {
+                    Text(
+                        text = "سجل أخطائي",
+                        fontSize = 13.sp,
+                        fontWeight = if (currentTab == 1) FontWeight.Bold else FontWeight.Normal,
+                        color = if (currentTab == 1) AlertCrimson else InkSpaceGray
+                    )
+                }
+            )
+        }
+
+        // Subject Filters
+        val subjects = listOf(
             "ALL" to "الكل",
-            "ARABIC" to "النحو العربي",
+            "ARABIC" to "النحو",
             "ENGLISH" to "English",
-            "HISTORY" to "تاريخ مصر",
-            "PROGRAMMING" to "البرمجة و AI"
+            "HISTORY" to "التاريخ",
+            "PROGRAMMING" to "البرمجة"
         )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 6.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            filters.forEach { (key, label) ->
-                val isSelected = selectedFilter == key
+            subjects.forEach { (key, label) ->
+                val isSelected = selectedSubject == key
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(if (isSelected) InkTitanium else SurfaceWhite)
-                        .border(1.dp, if (isSelected) InkTitanium else BorderHairline, RoundedCornerShape(20.dp))
-                        .clickable { viewModel.setFilter(key) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .border(1.dp, if (isSelected) InkTitanium else BorderHairline, RoundedCornerShape(16.dp))
+                        .clickable { viewModel.setSubject(key) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
                         text = label,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (isSelected) SurfaceWhite else InkTitanium
                     )
@@ -106,29 +161,82 @@ fun SubjectsScreen(viewModel: SubjectsViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Questions List
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(questions, key = { it.id }) { question ->
-                QuestionBrowserCard(question = question)
+        // Topic / Branch Filters (if available)
+        if (availableTopics.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val allTopics = listOf("ALL") + availableTopics
+                allTopics.forEach { topic ->
+                    val isSelected = selectedTopic == topic
+                    val label = if (topic == "ALL") "جميع الفروع" else topic
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) AccentEmerald else SurfaceSubtle)
+                        .clickable { viewModel.setTopic(topic) }
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) SurfaceWhite else InkTitanium
+                        )
+                    }
+                }
             }
-            item {
-                Spacer(modifier = Modifier.height(80.dp))
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        if (questions.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (currentTab == 1) "سجلك نظيف! لا توجد أخطاء حالياً 👏" else "لا توجد أسئلة تطابق الفلتر",
+                    fontSize = 14.sp,
+                    color = InkSpaceGray,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(questions, key = { it.id }) { question ->
+                    QuestionLockCard(
+                        question = question,
+                        onSolve = { onSolveQuestion(question.id) }
+                    )
+                }
+                item {
+                    Spacer(modifier = Modifier.height(80.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-fun QuestionBrowserCard(question: QuestionEntity) {
+fun QuestionLockCard(
+    question: QuestionEntity,
+    onSolve: () -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     val direction = if (question.languageRtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+    val isAnswered = question.isAnswered
 
     CompositionLocalProvider(LocalLayoutDirection provides direction) {
         AppleCard(
@@ -137,9 +245,9 @@ fun QuestionBrowserCard(question: QuestionEntity) {
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Topic & Difficulty Badge
+                // Topic & Solved Status Badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -152,7 +260,7 @@ fun QuestionBrowserCard(question: QuestionEntity) {
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = question.topic,
+                            text = "${question.subject} • ${question.topic}",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = InkTitanium
@@ -160,21 +268,35 @@ fun QuestionBrowserCard(question: QuestionEntity) {
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = when (question.difficulty) {
-                                "EASY" -> "مباشر"
-                                "HARD" -> "متقدم"
-                                else -> "متوسط"
-                            },
-                            fontSize = 11.sp,
-                            color = InkSpaceGray
-                        )
+                        if (isAnswered) {
+                            Text(
+                                text = if (question.lastAnswerCorrect) "✓ تم الحل" else "✗ خطأ سابق",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (question.lastAnswerCorrect) AccentEmerald else AlertCrimson
+                            )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Lock,
+                                    contentDescription = null,
+                                    tint = InkSpaceGray,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "محجوب",
+                                    fontSize = 11.sp,
+                                    color = InkSpaceGray
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                             contentDescription = null,
                             tint = InkSpaceGray,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -182,10 +304,10 @@ fun QuestionBrowserCard(question: QuestionEntity) {
                 // Question Prompt
                 Text(
                     text = question.questionText,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = InkTitanium,
-                    lineHeight = 22.sp,
+                    lineHeight = 21.sp,
                     textAlign = if (question.languageRtl) TextAlign.Right else TextAlign.Left
                 )
 
@@ -194,8 +316,8 @@ fun QuestionBrowserCard(question: QuestionEntity) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(top = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         val options = listOf(
                             0 to question.optionA,
@@ -204,50 +326,91 @@ fun QuestionBrowserCard(question: QuestionEntity) {
                             3 to question.optionD
                         )
 
-                        options.forEach { (idx, optText) ->
-                            val isCorrect = idx == question.correctOptionIndex
-                            Row(
+                        if (!isAnswered) {
+                            // User hasn't answered yet -> Hide correct answer!
+                            options.forEach { (idx, optText) ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SurfaceSubtle)
+                                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                                ) {
+                                    Text(
+                                        text = optText,
+                                        fontSize = 13.sp,
+                                        color = InkTitanium
+                                    )
+                                }
+                            }
+
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isCorrect) EmeraldLight else SurfaceSubtle)
-                                    .border(1.dp, if (isCorrect) AccentEmerald.copy(alpha = 0.5f) else BorderHairline, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .background(SurfaceWhite)
+                                    .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
                             ) {
-                                if (isCorrect) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = AccentEmerald,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
                                 Text(
-                                    text = optText,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isCorrect) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isCorrect) AccentEmerald else InkTitanium
+                                    text = "🔒 الإجابة والتفسير يظهران بعد إجابتك على السؤال.",
+                                    fontSize = 11.sp,
+                                    color = InkSpaceGray
                                 )
                             }
-                        }
 
-                        // Explanation
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(SurfaceWhite)
-                                .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
-                                .padding(10.dp)
-                        ) {
-                            Text(
-                                text = "الإيضاح: ${question.explanation}",
-                                fontSize = 12.sp,
-                                color = InkSpaceGray,
-                                lineHeight = 18.sp
+                            MinimalButton(
+                                text = "حل السؤال الآن",
+                                onClick = onSolve,
+                                variant = ButtonStyleVariant.PRIMARY,
+                                height = 38.dp
                             )
+                        } else {
+                            // User answered previously -> Show highlighted answer & explanation!
+                            options.forEach { (idx, optText) ->
+                                val isCorrect = idx == question.correctOptionIndex
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isCorrect) EmeraldLight else SurfaceSubtle)
+                                        .border(1.dp, if (isCorrect) AccentEmerald else BorderHairline, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isCorrect) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = AccentEmerald,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = optText,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isCorrect) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCorrect) AccentEmerald else InkTitanium
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SurfaceWhite)
+                                    .border(1.dp, BorderHairline, RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = "التفسير: ${question.explanation}",
+                                    fontSize = 12.sp,
+                                    color = InkSpaceGray,
+                                    lineHeight = 17.sp
+                                )
+                            }
                         }
                     }
                 }

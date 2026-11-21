@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 jobs:
@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -27,22 +29,51 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Ensure Persistent Keystore
+        run: |
+          mkdir -p app/keystore
+          if [ ! -f app/keystore/release.jks ]; then
+            echo "Generating persistent keystore..."
+            keytool -genkey -v \
+              -keystore app/keystore/release.jks \
+              -alias studyenforcer \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "studyenforcer123" \
+              -keypass "studyenforcer123" \
+              -dname "CN=StudyEnforcer, OU=Engineering, O=Baccalaureate, L=Cairo, S=Cairo, C=EG"
+            
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add app/keystore/release.jks
+            git commit -m "chore: persist release signing keystore [skip ci]" || true
+            git push origin main || true
+          else
+            echo "Keystore already exists."
+          fi
+
       - name: Make Gradlew Executable
         run: chmod +x gradlew
 
       - name: Build Debug & Release APK
         run: ./gradlew assembleDebug assembleRelease --stacktrace
 
+      - name: Rename APKs for Clarity
+        run: |
+          cp app/build/outputs/apk/release/*.apk app/build/outputs/apk/release/BaccEnforcer-Release-v1.1.0.apk || true
+          cp app/build/outputs/apk/debug/*.apk app/build/outputs/apk/debug/BaccEnforcer-Debug-v1.1.0.apk || true
+
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BaccEnforcer-Debug-APK
-          path: app/build/outputs/apk/debug/*.apk
+          name: BaccEnforcer-Debug-APK-v1.1.0
+          path: app/build/outputs/apk/debug/BaccEnforcer-Debug-v1.1.0.apk
           retention-days: 14
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BaccEnforcer-Release-APK
-          path: app/build/outputs/apk/release/*.apk
+          name: BaccEnforcer-Release-APK-v1.1.0
+          path: app/build/outputs/apk/release/BaccEnforcer-Release-v1.1.0.apk
           retention-days: 14

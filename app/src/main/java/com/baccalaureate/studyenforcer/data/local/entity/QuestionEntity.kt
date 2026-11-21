@@ -30,5 +30,7 @@ data class QuestionEntity(
     @SerializedName("languageRtl")
     val languageRtl: Boolean = true,
     @SerializedName("difficulty")
-    val difficulty: String = "MEDIUM" // EASY, MEDIUM, HARD
+    val difficulty: String = "MEDIUM", // EASY, MEDIUM, HARD
+    val isAnswered: Boolean = false,
+    val lastAnswerCorrect: Boolean = false
 )

@@ -6,6 +6,8 @@ import android.os.Build
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -18,8 +20,8 @@ import com.baccalaureate.studyenforcer.ui.theme.StudyEnforcerTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class OverlayWindowManager(
     private val context: Context,
@@ -29,6 +31,10 @@ class OverlayWindowManager(
     private var overlayView: ComposeView? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
     private val scope = CoroutineScope(Dispatchers.Main + Job())
+
+    private val currentQuestionFlow = MutableStateFlow<QuestionEntity?>(null)
+    private val strikesFlow = MutableStateFlow(0)
+    private val snoozeTokensFlow = MutableStateFlow(2)
 
     var isShowing: Boolean = false
         private set
@@ -40,86 +46,121 @@ class OverlayWindowManager(
         }
 
         scope.launch {
-            val question = studyRepository.getRandomQuestion() ?: return@launch
-            val userStats = studyRepository.getUserStatsFlow()
+            try {
+                val question = studyRepository.getRandomQuestion() ?: return@launch
+                currentQuestionFlow.value = question
 
-            val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            }
+                val stats = studyRepository.getUserStatsFlow()
+                // Collect latest stats
+                scope.launch {
+                    studyRepository.getUserStatsFlow().collect { s ->
+                        if (s != null) {
+                            strikesFlow.value = s.strikesCount
+                            snoozeTokensFlow.value = s.snoozeTokensRemaining
+                        }
+                    }
+                }
 
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.CENTER
-            }
+                val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
 
-            val owner = OverlayLifecycleOwner()
-            lifecycleOwner = owner
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    layoutFlag,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.CENTER
+                }
 
-            val composeView = ComposeView(context).apply {
-                setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-                setViewTreeLifecycleOwner(owner)
-                setViewTreeSavedStateRegistryOwner(owner)
-                setViewTreeViewModelStoreOwner(owner)
+                val owner = OverlayLifecycleOwner()
+                lifecycleOwner = owner
 
-                setContent {
-                    StudyEnforcerTheme {
-                        var currentQuestion = question
-                        var currentStrikesState = 0
-                        var snoozeTokens = 2
+                val composeView = ComposeView(context).apply {
+                    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                    setViewTreeLifecycleOwner(owner)
+                    setViewTreeSavedStateRegistryOwner(owner)
+                    setViewTreeViewModelStoreOwner(owner)
 
-                        OverlayQuestionDialog(
-                            question = currentQuestion,
-                            currentStrikes = currentStrikesState,
-                            snoozeTokensRemaining = snoozeTokens,
-                            onAnswerSubmitted = { selectedIndex ->
-                                scope.launch {
-                                    val result = studyRepository.recordAnswer(currentQuestion, selectedIndex)
-                                    currentStrikesState = result.strikesCount
-                                }
-                            },
-                            onNextQuestionRequested = {
-                                scope.launch {
-                                    val nextQ = studyRepository.getRandomQuestion()
-                                    if (nextQ != null) {
-                                        currentQuestion = nextQ
-                                    }
-                                }
-                            },
-                            onSnoozeRequested = {
-                                scope.launch {
-                                    val consumed = studyRepository.consumeSnoozeToken()
-                                    if (consumed) {
+                    setContent {
+                        StudyEnforcerTheme {
+                            val activeQuestion by currentQuestionFlow.collectAsState()
+                            val strikes by strikesFlow.collectAsState()
+                            val snoozeTokens by snoozeTokensFlow.collectAsState()
+
+                            if (activeQuestion != null) {
+                                OverlayQuestionDialog(
+                                    question = activeQuestion!!,
+                                    currentStrikes = strikes,
+                                    snoozeTokensRemaining = snoozeTokens,
+                                    onAnswerSubmitted = { selectedIndex ->
+                                        scope.launch {
+                                            try {
+                                                val result = studyRepository.recordAnswer(activeQuestion!!, selectedIndex)
+                                                strikesFlow.value = result.strikesCount
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    },
+                                    onNextQuestionRequested = {
+                                        scope.launch {
+                                            try {
+                                                val nextQ = studyRepository.getRandomQuestion()
+                                                if (nextQ != null) {
+                                                    currentQuestionFlow.value = nextQ
+                                                } else {
+                                                    dismissOverlay()
+                                                    onDismiss?.invoke()
+                                                }
+                                            } catch (e: Exception) {
+                                                dismissOverlay()
+                                                onDismiss?.invoke()
+                                            }
+                                        }
+                                    },
+                                    onSnoozeRequested = {
+                                        scope.launch {
+                                            try {
+                                                val consumed = studyRepository.consumeSnoozeToken()
+                                                if (consumed) {
+                                                    dismissOverlay()
+                                                    onDismiss?.invoke()
+                                                }
+                                            } catch (e: Exception) {
+                                                dismissOverlay()
+                                                onDismiss?.invoke()
+                                            }
+                                        }
+                                    },
+                                    onDismissAfterCorrect = {
+                                        dismissOverlay()
+                                        onDismiss?.invoke()
+                                    },
+                                    onEmergencyExit = {
                                         dismissOverlay()
                                         onDismiss?.invoke()
                                     }
-                                }
-                            },
-                            onDismissAfterCorrect = {
-                                dismissOverlay()
-                                onDismiss?.invoke()
+                                )
                             }
-                        )
+                        }
                     }
                 }
-            }
 
-            try {
                 windowManager.addView(composeView, params)
                 owner.handleResume()
                 overlayView = composeView
                 isShowing = true
             } catch (e: Exception) {
                 e.printStackTrace()
+                dismissOverlay()
             }
         }
     }
@@ -136,6 +177,7 @@ class OverlayWindowManager(
             overlayView = null
             lifecycleOwner = null
             isShowing = false
+            currentQuestionFlow.value = null
         }
     }
 }

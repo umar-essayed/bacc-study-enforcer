@@ -3,9 +3,8 @@ package com.baccalaureate.studyenforcer.ui.screens.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baccalaureate.studyenforcer.data.local.entity.BlockedAppEntity
-import com.baccalaureate.studyenforcer.data.remote.SupabaseApi
-import com.baccalaureate.studyenforcer.data.remote.SupabaseConfig
 import com.baccalaureate.studyenforcer.data.repository.StudyRepository
+import com.baccalaureate.studyenforcer.service.LocalSyncServer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,55 +16,34 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val repository: StudyRepository,
-    private val supabaseConfig: SupabaseConfig,
-    private val supabaseApi: SupabaseApi
+    private val repository: StudyRepository
 ) : ViewModel() {
 
-    val supabaseUrl = MutableStateFlow(supabaseConfig.url)
-    val supabaseAnonKey = MutableStateFlow(supabaseConfig.anonKey)
+    private val _serverIp = MutableStateFlow(LocalSyncServer.getLocalIpAddress())
+    val serverIp: StateFlow<String> = _serverIp.asStateFlow()
 
-    private val _syncStatus = MutableStateFlow<String?>(null)
-    val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
+    private val _statusMessage = MutableStateFlow<String?>(null)
+    val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+    private val _isImporting = MutableStateFlow(false)
+    val isImporting: StateFlow<Boolean> = _isImporting.asStateFlow()
 
     val blockedApps: StateFlow<List<BlockedAppEntity>> = repository.getBlockedAppsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun saveSupabaseConfig(url: String, key: String) {
-        supabaseConfig.url = url
-        supabaseConfig.anonKey = key
-        supabaseUrl.value = url
-        supabaseAnonKey.value = key
-        _syncStatus.value = "تم حفظ بيانات Supabase بنجاح"
+    fun refreshIp() {
+        _serverIp.value = LocalSyncServer.getLocalIpAddress()
     }
 
-    fun testConnection() {
+    fun importQuestionsFromJson(json: String) {
         viewModelScope.launch {
-            _isSyncing.value = true
-            _syncStatus.value = "جاري اختبار الاتصال بسيرفر Supabase..."
-            val result = supabaseApi.testConnection()
-            _isSyncing.value = false
-            _syncStatus.value = if (result.isSuccess) {
-                "✓ تم الاتصال بسيرفر Supabase بنجاح!"
+            _isImporting.value = true
+            val count = repository.importQuestionsDirectly(json)
+            _isImporting.value = false
+            if (count > 0) {
+                _statusMessage.value = "تم استيراد $count سؤالاً بنجاح إلى بنك الأسئلة"
             } else {
-                "✗ فشل الاتصال: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun syncFromSupabase() {
-        viewModelScope.launch {
-            _isSyncing.value = true
-            _syncStatus.value = "جاري جلب وتحديث بنك الأسئلة من Supabase..."
-            val result = repository.syncWithSupabase()
-            _isSyncing.value = false
-            _syncStatus.value = if (result.isSuccess) {
-                "✓ تمت المزامنة بنجاح! تم تحميل ${result.getOrNull()} سؤالاً جديداً."
-            } else {
-                "✗ تعذرت المزامنة: ${result.exceptionOrNull()?.localizedMessage}"
+                _statusMessage.value = "تعذر الاستيراد، تحقق من تنسيق الـ JSON"
             }
         }
     }
@@ -79,7 +57,11 @@ class SettingsViewModel @Inject constructor(
     fun resetStrikes() {
         viewModelScope.launch {
             repository.unlockPenaltyEarlyAfterReview()
-            _syncStatus.value = "تمت إعادة ضبط عداد الضربات إلى 0"
+            _statusMessage.value = "تمت إعادة ضبط عداد المخالفات"
         }
+    }
+
+    fun clearStatus() {
+        _statusMessage.value = null
     }
 }

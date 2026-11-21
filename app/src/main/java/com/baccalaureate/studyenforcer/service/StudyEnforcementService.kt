@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import com.baccalaureate.studyenforcer.BaccEnforcerApp
 import com.baccalaureate.studyenforcer.R
 import com.baccalaureate.studyenforcer.data.repository.StudyRepository
 import com.baccalaureate.studyenforcer.ui.MainActivity
@@ -35,7 +36,7 @@ class StudyEnforcementService : Service() {
     private var overlayWindowManager: OverlayWindowManager? = null
     private var screenReceiver: BroadcastReceiver? = null
 
-    // Default interval in seconds (configurable: 20 mins = 1200s)
+    // Default interval in seconds (20 mins)
     private var popupIntervalSeconds = 20 * 60
     private var secondsUntilNextPopup = popupIntervalSeconds
     private var streakDays = 1
@@ -53,7 +54,7 @@ class StudyEnforcementService : Service() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
                     Intent.ACTION_SCREEN_ON, Intent.ACTION_USER_PRESENT -> {
-                        // If penalty is active, trigger overlay or check
+                        // Keep live
                     }
                 }
             }
@@ -67,7 +68,6 @@ class StudyEnforcementService : Service() {
 
     private fun startPeriodicTicker() {
         serviceScope.launch {
-            // Collect user stats for notification display
             launch {
                 studyRepository.getUserStatsFlow().collect { stats ->
                     if (stats != null) {
@@ -79,19 +79,16 @@ class StudyEnforcementService : Service() {
             while (isActive) {
                 delay(1000L)
 
-                // Check active locker state
                 val lockerState = studyRepository.getLockerState()
                 val isLockerActive = lockerState?.isActive == true
 
                 if (secondsUntilNextPopup > 0) {
                     secondsUntilNextPopup--
                 } else {
-                    // Trigger overlay question
-                    triggerQuestionOverlay()
+                    triggerQuestion()
                     secondsUntilNextPopup = popupIntervalSeconds
                 }
 
-                // Update notification every 10 seconds or when minute rolls over
                 if (secondsUntilNextPopup % 10 == 0 || isLockerActive) {
                     updateNotification(isLockerActive, lockerState?.remainingSeconds ?: 0L, lockerState?.isPenaltyMode == true)
                 }
@@ -99,10 +96,19 @@ class StudyEnforcementService : Service() {
         }
     }
 
-    fun triggerQuestionOverlay() {
+    fun triggerQuestion() {
         serviceScope.launch {
-            overlayWindowManager?.showQuestionOverlay {
-                secondsUntilNextPopup = popupIntervalSeconds
+            if (BaccEnforcerApp.isAppInForeground) {
+                // If user is inside the app, broadcast to MainActivity to show in-app Quiz!
+                val intent = Intent(ACTION_TRIGGER_IN_APP_QUIZ).apply {
+                    setPackage(packageName)
+                }
+                sendBroadcast(intent)
+            } else {
+                // If user is outside the app, show WindowManager overlay!
+                overlayWindowManager?.showQuestionOverlay {
+                    secondsUntilNextPopup = popupIntervalSeconds
+                }
             }
         }
     }
@@ -172,7 +178,7 @@ class StudyEnforcementService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.getBooleanExtra(EXTRA_TRIGGER_NOW, false) == true) {
-            triggerQuestionOverlay()
+            triggerQuestion()
         }
         return START_STICKY
     }
@@ -196,5 +202,13 @@ class StudyEnforcementService : Service() {
         const val NOTIFICATION_CHANNEL_ID = "study_enforcement_channel"
         const val NOTIFICATION_ID = 1001
         const val EXTRA_TRIGGER_NOW = "extra_trigger_now"
+        const val ACTION_TRIGGER_IN_APP_QUIZ = "com.baccalaureate.studyenforcer.TRIGGER_IN_APP_QUIZ"
+
+        fun triggerImmediateQuiz(context: Context) {
+            val intent = Intent(context, StudyEnforcementService::class.java).apply {
+                putExtra(EXTRA_TRIGGER_NOW, true)
+            }
+            context.startService(intent)
+        }
     }
 }

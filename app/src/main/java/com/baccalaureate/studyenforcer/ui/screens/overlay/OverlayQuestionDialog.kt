@@ -1,7 +1,6 @@
 package com.baccalaureate.studyenforcer.ui.screens.overlay
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
@@ -25,9 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -50,7 +51,6 @@ import com.baccalaureate.studyenforcer.ui.components.AppleCard
 import com.baccalaureate.studyenforcer.ui.components.ButtonStyleVariant
 import com.baccalaureate.studyenforcer.ui.components.MinimalButton
 import com.baccalaureate.studyenforcer.ui.theme.AccentEmerald
-import com.baccalaureate.studyenforcer.ui.theme.AccentGold
 import com.baccalaureate.studyenforcer.ui.theme.AlertCrimson
 import com.baccalaureate.studyenforcer.ui.theme.BorderHairline
 import com.baccalaureate.studyenforcer.ui.theme.CrimsonLight
@@ -65,10 +65,11 @@ fun OverlayQuestionDialog(
     question: QuestionEntity,
     currentStrikes: Int,
     snoozeTokensRemaining: Int,
-    onAnswerSubmitted: (Int) -> Unit, // Option index
+    onAnswerSubmitted: (Int) -> Unit,
     onNextQuestionRequested: () -> Unit,
     onSnoozeRequested: () -> Unit,
-    onDismissAfterCorrect: () -> Unit
+    onDismissAfterCorrect: () -> Unit,
+    onEmergencyExit: () -> Unit
 ) {
     var selectedIndex by remember(question.id) { mutableStateOf<Int?>(null) }
     var isSubmitted by remember(question.id) { mutableStateOf(false) }
@@ -80,29 +81,29 @@ fun OverlayQuestionDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.72f))
+                .background(Color.Black.copy(alpha = 0.65f))
                 .padding(20.dp),
             contentAlignment = Alignment.Center
         ) {
             AppleCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp)),
-                cornerRadius = 20.dp
+                    .clip(RoundedCornerShape(22.dp)),
+                cornerRadius = 22.dp
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Top Bar: Subject Badge + Strikes Indicator + Snooze
+                    // Header Bar: Subject + Strikes + Emergency Dismiss
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Subject Tag
+                        // Subject & Topic Badge
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
@@ -111,23 +112,17 @@ fun OverlayQuestionDialog(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = when (question.subject) {
-                                    "ARABIC" -> "النحو العربي"
-                                    "ENGLISH" -> "English"
-                                    "HISTORY" -> "تاريخ مصر"
-                                    "PROGRAMMING" -> "Programming & AI"
-                                    else -> question.subject
-                                },
-                                fontSize = 12.sp,
+                                text = "${question.subject} • ${question.topic}",
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = InkTitanium
                             )
                         }
 
-                        // Strikes Counter & Snooze
+                        // Right Controls: Strikes + Snooze + Close
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             if (currentStrikes > 0) {
                                 Row(
@@ -135,17 +130,17 @@ fun OverlayQuestionDialog(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
                                         .background(CrimsonLight)
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .padding(horizontal = 7.dp, vertical = 3.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Warning,
                                         contentDescription = null,
                                         tint = AlertCrimson,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(13.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "$currentStrikes/3 ضربات",
+                                        text = "$currentStrikes/3",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = AlertCrimson
@@ -167,15 +162,28 @@ fun OverlayQuestionDialog(
                                         imageVector = Icons.Outlined.Timer,
                                         contentDescription = null,
                                         tint = InkSpaceGray,
-                                        modifier = Modifier.size(13.dp)
+                                        modifier = Modifier.size(12.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "تأجيل 5د ($snoozeTokensRemaining)",
+                                        text = "تأجيل 5د",
                                         fontSize = 11.sp,
                                         color = InkSpaceGray
                                     )
                                 }
+                            }
+
+                            // Emergency Safe Close Button
+                            IconButton(
+                                onClick = onEmergencyExit,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = "إغلاق",
+                                    tint = InkSpaceGray,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }
@@ -183,10 +191,10 @@ fun OverlayQuestionDialog(
                     // Question Text
                     Text(
                         text = question.questionText,
-                        fontSize = 17.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = InkTitanium,
-                        lineHeight = 25.sp,
+                        lineHeight = 24.sp,
                         textAlign = if (question.languageRtl) TextAlign.Right else TextAlign.Left
                     )
 
@@ -200,7 +208,7 @@ fun OverlayQuestionDialog(
 
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         options.forEach { (index, text) ->
                             val isThisSelected = selectedIndex == index
@@ -224,10 +232,9 @@ fun OverlayQuestionDialog(
                                         isSubmitted = true
                                         onAnswerSubmitted(index)
                                     }
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    .padding(horizontal = 12.dp, vertical = 11.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Option Letter Badge
                                 val badgeLetter = when (index) {
                                     0 -> if (question.languageRtl) "أ" else "A"
                                     1 -> if (question.languageRtl) "ب" else "B"
@@ -237,7 +244,7 @@ fun OverlayQuestionDialog(
 
                                 Box(
                                     modifier = Modifier
-                                        .size(28.dp)
+                                        .size(24.dp)
                                         .clip(CircleShape)
                                         .background(if (isSubmitted && isThisCorrect) AccentEmerald else SurfaceSubtle),
                                     contentAlignment = Alignment.Center
@@ -247,26 +254,26 @@ fun OverlayQuestionDialog(
                                             imageVector = Icons.Default.Check,
                                             contentDescription = null,
                                             tint = SurfaceWhite,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(14.dp)
                                         )
                                     } else if (isSubmitted && isThisSelected && !isThisCorrect) {
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = null,
                                             tint = AlertCrimson,
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(14.dp)
                                         )
                                     } else {
                                         Text(
                                             text = badgeLetter,
-                                            fontSize = 12.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = InkSpaceGray
                                         )
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
 
                                 Text(
                                     text = text,
@@ -280,7 +287,7 @@ fun OverlayQuestionDialog(
                         }
                     }
 
-                    // Crisp Explanation Card (appears after submission)
+                    // Explanation Card
                     AnimatedVisibility(
                         visible = isSubmitted,
                         enter = fadeIn() + slideInVertically { it / 2 }
@@ -291,37 +298,44 @@ fun OverlayQuestionDialog(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(if (isCorrect) EmeraldLight else CrimsonLight)
                                 .border(1.dp, if (isCorrect) AccentEmerald.copy(alpha = 0.3f) else AlertCrimson.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = if (isCorrect) "إجابة دقيقة وصحيحة" else "إجابة خاطئة — راجع القاعدة:",
+                                text = if (isCorrect) "إجابة صحيحة" else "خطأ — التفسير:",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isCorrect) AccentEmerald else AlertCrimson
                             )
                             Text(
                                 text = question.explanation,
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
                                 color = InkTitanium
                             )
                         }
                     }
 
-                    // Action Button (Continue or Next Question)
+                    // Bottom Action Button
                     if (isSubmitted) {
                         if (isCorrect) {
                             MinimalButton(
-                                text = "متابعة المذاكرة (إغلاق النافذة)",
+                                text = "استمرار",
                                 onClick = onDismissAfterCorrect,
-                                variant = ButtonStyleVariant.PRIMARY
+                                variant = ButtonStyleVariant.PRIMARY,
+                                height = 44.dp
                             )
                         } else {
                             MinimalButton(
-                                text = "السؤال التالي (مطلوب للفك)",
-                                onClick = onNextQuestionRequested,
-                                variant = ButtonStyleVariant.DESTRUCTIVE
+                                text = "السؤال التالي",
+                                onClick = {
+                                    // Reset local state immediately and request next
+                                    selectedIndex = null
+                                    isSubmitted = false
+                                    onNextQuestionRequested()
+                                },
+                                variant = ButtonStyleVariant.DESTRUCTIVE,
+                                height = 44.dp
                             )
                         }
                     }

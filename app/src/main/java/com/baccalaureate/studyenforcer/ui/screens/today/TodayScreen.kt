@@ -2,7 +2,6 @@ package com.baccalaureate.studyenforcer.ui.screens.today
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,10 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.LockClock
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,27 +46,26 @@ import com.baccalaureate.studyenforcer.ui.theme.AlertCrimson
 import com.baccalaureate.studyenforcer.ui.theme.BorderHairline
 import com.baccalaureate.studyenforcer.ui.theme.CanvasAlabaster
 import com.baccalaureate.studyenforcer.ui.theme.CrimsonLight
-import com.baccalaureate.studyenforcer.ui.theme.EmeraldLight
 import com.baccalaureate.studyenforcer.ui.theme.GoldLight
 import com.baccalaureate.studyenforcer.ui.theme.InkSpaceGray
 import com.baccalaureate.studyenforcer.ui.theme.InkTitanium
 import com.baccalaureate.studyenforcer.ui.theme.SurfaceSubtle
-import com.baccalaureate.studyenforcer.ui.theme.SurfaceWhite
 
 @Composable
 fun TodayScreen(
     viewModel: TodayViewModel,
     onNavigateToSettings: () -> Unit,
     onNavigateToLocker: () -> Unit,
-    onNavigateToSubjects: () -> Unit
+    onNavigateToSubjects: () -> Unit,
+    onStartInAppQuiz: () -> Unit
 ) {
     val context = LocalContext.current
     val stats by viewModel.userStats.collectAsState()
-    val subjectProgress by viewModel.subjectProgress.collectAsState()
     val lockerState by viewModel.lockerState.collectAsState()
 
+    val studentName = stats?.userName ?: "بطل الثانوية"
     val streakDays = stats?.streakDays ?: 1
-    val focusMins = stats?.totalFocusMinutes ?: 45
+    val focusMins = stats?.totalFocusMinutes ?: 0
     val answered = stats?.totalAnswered ?: 0
     val correct = stats?.correctCount ?: 0
     val accuracy = if (answered > 0) (correct.toFloat() / answered.toFloat()) else 0.85f
@@ -81,10 +77,9 @@ fun TodayScreen(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 80.dp)
     ) {
-        // Minimalist Header Bar
         HeaderBar(
             title = "اليوم",
-            subtitle = "الثانوية العامة • علمي رياضة وحاسبات",
+            subtitle = "أهلاً بك يا $studentName 🚀",
             trailingContent = {
                 IconButton(onClick = onNavigateToSettings) {
                     Icon(
@@ -100,11 +95,12 @@ fun TodayScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Active Penalty or Locker Banner
             AnimatedVisibility(visible = lockerState?.isActive == true) {
                 val isPenalty = lockerState?.isPenaltyMode == true
+                val remainingMins = (lockerState?.remainingSeconds ?: 0L) / 60
                 AppleCard(
                     modifier = Modifier.fillMaxWidth(),
                     borderColor = if (isPenalty) AlertCrimson else AccentGold,
@@ -118,20 +114,19 @@ fun TodayScreen(
                             imageVector = if (isPenalty) Icons.Outlined.Warning else Icons.Outlined.LockClock,
                             contentDescription = null,
                             tint = if (isPenalty) AlertCrimson else AccentGold,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isPenalty) "وضع العقوبة مفعل (3 ضربات)" else "وضع القفل المشدد نشط",
-                                fontSize = 14.sp,
+                                text = if (isPenalty) "وضع العقوبة نشط" else "القفل المشدد نشط",
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isPenalty) AlertCrimson else InkTitanium
                             )
-                            val remainingMins = (lockerState?.remainingSeconds ?: 0L) / 60
                             Text(
-                                text = "متبقي $remainingMins دقيقة • التطبيقات المشتتة محجوبة",
-                                fontSize = 12.sp,
+                                text = "متبقي $remainingMins دقيقة",
+                                fontSize = 11.sp,
                                 color = InkSpaceGray
                             )
                         }
@@ -147,17 +142,17 @@ fun TodayScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     ConcentricRingsView(
-                        size = 135.dp,
+                        size = 125.dp,
                         streakProgress = (streakDays / 10f).coerceIn(0.1f, 1f),
                         focusProgress = (focusMins / 120f).coerceIn(0.1f, 1f),
                         accuracyProgress = accuracy
                     )
 
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
 
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RingMetricItem(
                             label = "التتابع",
@@ -181,9 +176,8 @@ fun TodayScreen(
             // Quick Status Matrix
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Strikes Card
                 val strikes = stats?.strikesCount ?: 0
                 AppleCard(
                     modifier = Modifier.weight(1f),
@@ -191,64 +185,52 @@ fun TodayScreen(
                 ) {
                     Column {
                         Text(
-                            text = "عداد الضربات",
+                            text = "الضربات",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
                             color = InkSpaceGray
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "$strikes / 3",
-                            fontSize = 20.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (strikes > 0) AlertCrimson else InkTitanium
-                        )
-                        Text(
-                            text = if (strikes == 0) "سجل نظيف" else "حذر: عقوبة عند 3",
-                            fontSize = 11.sp,
-                            color = if (strikes > 0) AlertCrimson else AccentEmerald
                         )
                     }
                 }
 
-                // Snooze Tokens Card
                 val snoozeTokens = stats?.snoozeTokensRemaining ?: 2
                 AppleCard(modifier = Modifier.weight(1f)) {
                     Column {
                         Text(
-                            text = "فرص التأجيل اليومي",
+                            text = "تأجيل الطوارئ",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
                             color = InkSpaceGray
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "$snoozeTokens / 2",
-                            fontSize = 20.sp,
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (snoozeTokens > 0) AccentEmerald else InkSpaceGray
-                        )
-                        Text(
-                            text = "تأجيل 5د للطوارئ",
-                            fontSize = 11.sp,
-                            color = InkSpaceGray
                         )
                     }
                 }
             }
 
-            // Quick Micro-Quiz Trigger Button
+            // Quick In-App Quiz Button
             MinimalButton(
-                text = "⚡ بدء اختبار سريع فوري (نافذة منبثقة)",
-                onClick = { viewModel.triggerQuickPopup(context) },
-                variant = ButtonStyleVariant.PRIMARY
+                text = "اختبار فوري",
+                onClick = onStartInAppQuiz,
+                variant = ButtonStyleVariant.PRIMARY,
+                height = 46.dp
             )
 
             // Subject Mastery Breakdown
             AppleCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -256,14 +238,14 @@ fun TodayScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "مصفوفة الإتقان الأكاديمي",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            text = "الإتقان الدراسي",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
                             color = InkTitanium
                         )
                         Text(
                             text = "عرض الأسئلة",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             color = AccentEmerald,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.clip(RoundedCornerShape(4.dp))
@@ -271,15 +253,14 @@ fun TodayScreen(
                     }
 
                     val subjects = listOf(
-                        "ARABIC" to ("النحو العربي (ثانية ثانوي)" to 0.88f),
-                        "ENGLISH" to ("اللغة الإنجليزية (Grammar)" to 0.76f),
-                        "HISTORY" to ("تاريخ مصر والشرق الأوسط" to 0.92f),
-                        "PROGRAMMING" to ("البرمجة والذكاء الاصطناعي" to 0.94f)
+                        "النحو العربي" to 0.88f,
+                        "English" to 0.76f,
+                        "التاريخ" to 0.92f,
+                        "البرمجة و AI" to 0.94f
                     )
 
-                    subjects.forEach { (_, data) ->
-                        val (name, prog) = data
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    subjects.forEach { (name, prog) ->
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -300,7 +281,7 @@ fun TodayScreen(
                                 progress = prog,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(6.dp)
+                                    .height(5.dp)
                                     .clip(RoundedCornerShape(3.dp)),
                                 color = AccentEmerald,
                                 trackColor = SurfaceSubtle
@@ -318,20 +299,20 @@ fun RingMetricItem(label: String, value: String, color: androidx.compose.ui.grap
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
-                .size(10.dp)
+                .size(9.dp)
                 .clip(CircleShape)
                 .background(color)
         )
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Column {
             Text(
                 text = label,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 color = InkSpaceGray
             )
             Text(
                 text = value,
-                fontSize = 14.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = InkTitanium
             )

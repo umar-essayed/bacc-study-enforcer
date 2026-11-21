@@ -1,6 +1,5 @@
 package com.baccalaureate.studyenforcer.ui.screens.locker
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,11 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.PhonelinkLock
-import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,7 +39,6 @@ import com.baccalaureate.studyenforcer.ui.components.AppleCard
 import com.baccalaureate.studyenforcer.ui.components.ButtonStyleVariant
 import com.baccalaureate.studyenforcer.ui.components.HeaderBar
 import com.baccalaureate.studyenforcer.ui.components.MinimalButton
-import com.baccalaureate.studyenforcer.ui.theme.AccentEmerald
 import com.baccalaureate.studyenforcer.ui.theme.AccentGold
 import com.baccalaureate.studyenforcer.ui.theme.BorderHairline
 import com.baccalaureate.studyenforcer.ui.theme.CanvasAlabaster
@@ -52,7 +49,10 @@ import com.baccalaureate.studyenforcer.ui.theme.SurfaceSubtle
 import com.baccalaureate.studyenforcer.ui.theme.SurfaceWhite
 
 @Composable
-fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
+fun FocusLockerScreen(
+    viewModel: FocusLockerViewModel,
+    onNavigateToPolicy: () -> Unit
+) {
     val lockerState by viewModel.lockerState.collectAsState()
     val selectedDuration by viewModel.selectedDurationMinutes.collectAsState()
 
@@ -66,17 +66,16 @@ fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
             .padding(bottom = 80.dp)
     ) {
         HeaderBar(
-            title = "القفل الدراسي الصارم",
-            subtitle = "حظر غير قابل للإلغاء مع كتم الإشعارات لضمان التركيز الكامل"
+            title = "القفل الدراسي",
+            subtitle = "حجب غير قابل للإلغاء مع كتم الإشعارات لضمان التركيز"
         )
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Main Locker Card
             AppleCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -85,7 +84,7 @@ fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(60.dp)
+                            .size(56.dp)
                             .clip(CircleShape)
                             .background(if (isLocked) GoldLight else SurfaceSubtle),
                         contentAlignment = Alignment.Center
@@ -94,7 +93,7 @@ fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
                             imageVector = if (isLocked) Icons.Outlined.Lock else Icons.Outlined.PhonelinkLock,
                             contentDescription = null,
                             tint = if (isLocked) AccentGold else InkTitanium,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
 
@@ -105,45 +104,38 @@ fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
 
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "جلسة القفل نشطة حالياً",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = InkTitanium
-                            )
-                            Text(
-                                text = "%02d:%02d".format(mins, secs),
-                                fontSize = 42.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AccentGold,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                            Text(
-                                text = "لا يمكن إلغاء الجلسة مبكراً لحماية انضباطك",
-                                fontSize = 12.sp,
-                                color = InkSpaceGray,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    } else {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "تحديد مدة القفل المشدد",
+                                text = "جلسة القفل نشطة",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = InkTitanium
                             )
                             Text(
-                                text = "اختر المدة التي ترغب في غلق المشتتات خلالها:",
-                                fontSize = 12.sp,
+                                text = "%02d:%02d".format(mins, secs),
+                                fontSize = 38.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentGold,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            Text(
+                                text = "محمي من الإلغاء المبكر",
+                                fontSize = 11.sp,
                                 color = InkSpaceGray,
                                 modifier = Modifier.padding(top = 2.dp)
                             )
                         }
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "اختر مدة الجلسة",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = InkTitanium
+                            )
+                        }
 
-                        // Duration Selector Pills: 30m, 1h, 2h, 4h
                         val durationOptions = listOf(
                             30 to "30 دقيقة",
-                            60 to "ساعة واحدة",
+                            60 to "ساعة",
                             120 to "ساعتان",
                             240 to "4 ساعات"
                         )
@@ -166,7 +158,7 @@ fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                         color = if (isSelected) SurfaceWhite else InkTitanium,
                                         textAlign = TextAlign.Center
@@ -176,74 +168,46 @@ fun FocusLockerScreen(viewModel: FocusLockerViewModel) {
                         }
 
                         MinimalButton(
-                            text = "بدء القفل المشدد الآن ($selectedDuration دقيقة)",
+                            text = "بدء القفل ($selectedDuration دقيقة)",
                             onClick = { viewModel.activateStrictLocker() },
-                            variant = ButtonStyleVariant.PRIMARY
+                            variant = ButtonStyleVariant.PRIMARY,
+                            height = 46.dp
                         )
                     }
                 }
             }
 
-            // Rules & Whitelist Specs Card
-            AppleCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
+            // Compact link to Policy & Rules
+            AppleCard(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onNavigateToPolicy
+            ) {
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Policy,
+                        contentDescription = null,
+                        tint = InkTitanium,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "قواعد وبروتوكول القفل المشدد:",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = InkTitanium
+                        text = "سياسة الاستخدام وقواعد القفل",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = InkTitanium,
+                        modifier = Modifier.weight(1f)
                     )
-
-                    LockerRuleItem(
-                        icon = Icons.Outlined.Security,
-                        title = "القائمة البيضاء فقط",
-                        desc = "يُسمح فقط بإجراء المكالمات الهاتفية، واستخدام الآلة الحاسبة، واستخدام هذا التطبيق."
-                    )
-                    LockerRuleItem(
-                        icon = Icons.Outlined.NotificationsOff,
-                        title = "كتم إشعارات السوشيال ميديا",
-                        desc = "يتم إسكات جميع التنبيهات المنبثقة من فيسبوك وإنستغرام وتيك توك وغيرها."
-                    )
-                    LockerRuleItem(
-                        icon = Icons.Outlined.Check,
-                        title = "مقاومة إعادة التشغيل",
-                        desc = "تستمر الجلسة حتى لو تمت إعادة تشغيل الهاتف وتعود للحجب فور الإقلاع."
+                    Icon(
+                        imageVector = Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = BorderHairline,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun LockerRuleItem(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, desc: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = AccentEmerald,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
-            Text(
-                text = title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = InkTitanium
-            )
-            Text(
-                text = desc,
-                fontSize = 11.sp,
-                color = InkSpaceGray,
-                lineHeight = 16.sp
-            )
         }
     }
 }
