@@ -4,8 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.baccalaureate.studyenforcer.data.local.entity.QuestionEntity
 import com.baccalaureate.studyenforcer.data.repository.StudyRepository
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -40,8 +38,7 @@ data class TrueFalseGameState(
 
 @HiltViewModel
 class TrueFalseViewModel @Inject constructor(
-    private val repository: StudyRepository,
-    private val gson: Gson
+    private val repository: StudyRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TrueFalseGameState())
@@ -53,20 +50,17 @@ class TrueFalseViewModel @Inject constructor(
 
     fun startGame(subject: String = "ALL", topic: String? = null) {
         viewModelScope.launch {
-            val questions = if (subject == "ALL") {
+            val questions = repository.getQuestionsFiltered(subject, topic).first()
+
+            val effectiveQuestions = if (questions.isEmpty()) {
                 repository.getAllQuestions().first()
             } else {
-                repository.getQuestionsBySubjectAndTopic(subject, topic).first()
+                questions
             }
 
-            if (questions.isEmpty()) {
-                val fallback = repository.getAllQuestions().first()
-                allItems = convertQuestionsToTF(fallback).shuffled()
-            } else {
-                allItems = convertQuestionsToTF(questions).shuffled()
-            }
-
+            allItems = convertQuestionsToTF(effectiveQuestions).shuffled()
             itemIndex = 0
+
             _state.value = TrueFalseGameState(
                 currentItem = allItems.getOrNull(itemIndex),
                 score = 0,
@@ -74,7 +68,7 @@ class TrueFalseViewModel @Inject constructor(
                 correctCount = 0,
                 wrongCount = 0,
                 remainingSeconds = 30,
-                isGameOver = false
+                isGameOver = allItems.isEmpty()
             )
 
             startTimer()
@@ -82,13 +76,8 @@ class TrueFalseViewModel @Inject constructor(
     }
 
     private fun convertQuestionsToTF(questions: List<QuestionEntity>): List<TrueFalseItem> {
-        val listType = object : TypeToken<List<String>>() {}.type
         return questions.map { q ->
-            val options: List<String> = try {
-                gson.fromJson(q.optionsJson, listType) ?: emptyList()
-            } catch (e: Exception) {
-                emptyList()
-            }
+            val options = listOf(q.optionA, q.optionB, q.optionC, q.optionD).filter { it.isNotBlank() }
 
             val makeTrue = Random.nextBoolean() || options.size <= 1
             val chosenOption: String

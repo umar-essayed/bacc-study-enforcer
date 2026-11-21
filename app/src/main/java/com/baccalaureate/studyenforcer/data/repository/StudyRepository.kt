@@ -37,6 +37,18 @@ class StudyRepository(
     fun getQuestionsBySubjectAndTopic(subject: String, topic: String): Flow<List<QuestionEntity>> =
         questionDao.getQuestionsBySubjectAndTopic(subject, topic)
 
+    fun getQuestionsFiltered(subject: String = "ALL", topic: String? = null): Flow<List<QuestionEntity>> {
+        return when {
+            subject == "ALL" -> getAllQuestions()
+            topic.isNullOrBlank() -> getQuestionsBySubject(subject)
+            else -> getQuestionsBySubjectAndTopic(subject, topic)
+        }
+    }
+
+    suspend fun recordQuestionAnswer(questionId: Long, isCorrect: Boolean) {
+        questionDao.markQuestionAnswered(questionId, isCorrect)
+    }
+
     fun getTopicsForSubject(subject: String): Flow<List<String>> =
         questionDao.getTopicsForSubject(subject)
 

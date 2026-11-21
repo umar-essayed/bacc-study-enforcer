@@ -2,10 +2,7 @@ package com.baccalaureate.studyenforcer.ui.screens.games
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.baccalaureate.studyenforcer.data.local.entity.QuestionEntity
 import com.baccalaureate.studyenforcer.data.repository.StudyRepository
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,8 +36,7 @@ data class SyntaxFillState(
 
 @HiltViewModel
 class SyntaxFillViewModel @Inject constructor(
-    private val repository: StudyRepository,
-    private val gson: Gson
+    private val repository: StudyRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SyntaxFillState())
@@ -48,25 +44,16 @@ class SyntaxFillViewModel @Inject constructor(
 
     fun startGame(subject: String = "ALL", topic: String? = null) {
         viewModelScope.launch {
-            val rawQuestions = if (subject == "ALL") {
-                repository.getAllQuestions().first()
-            } else {
-                repository.getQuestionsBySubjectAndTopic(subject, topic).first()
-            }
+            val rawQuestions = repository.getQuestionsFiltered(subject, topic).first()
 
-            val questionsList = if (rawQuestions.isEmpty()) {
+            val effectiveQuestions = if (rawQuestions.isEmpty()) {
                 repository.getAllQuestions().first()
             } else {
                 rawQuestions
             }
 
-            val listType = object : TypeToken<List<String>>() {}.type
-            val fillQuestions = questionsList.mapNotNull { q ->
-                val options: List<String> = try {
-                    gson.fromJson(q.optionsJson, listType) ?: emptyList()
-                } catch (e: Exception) {
-                    emptyList()
-                }
+            val fillQuestions = effectiveQuestions.mapNotNull { q ->
+                val options = listOf(q.optionA, q.optionB, q.optionC, q.optionD).filter { it.isNotBlank() }
 
                 if (options.size >= 2) {
                     SyntaxFillQuestion(
