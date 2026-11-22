@@ -88,6 +88,14 @@ class StudyRepository(
     suspend fun getQuestionById(id: Long): QuestionEntity? =
         questionDao.getQuestionById(id)
 
+    suspend fun addQuestionDirectly(question: QuestionEntity) {
+        questionDao.insertQuestion(question)
+    }
+
+    suspend fun recordQuestionAnswer(questionId: Long, isCorrect: Boolean) {
+        questionDao.markQuestionAnswered(questionId, isCorrect)
+    }
+
     fun getQuestionsFiltered(subject: String = "ALL", topic: String? = null): Flow<List<QuestionEntity>> {
         return when {
             subject == "ALL" -> getAllQuestions()
