@@ -2,6 +2,7 @@ package com.baccalaureate.studyenforcer.ui.screens.today
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,20 +55,20 @@ import com.baccalaureate.studyenforcer.ui.theme.SurfaceSubtle
 fun TodayScreen(
     viewModel: TodayViewModel,
     onNavigateToSettings: () -> Unit,
-    onNavigateToLocker: () -> Unit,
-    onNavigateToSubjects: () -> Unit,
-    onStartInAppQuiz: () -> Unit
+    onStartInAppQuiz: () -> Unit,
+    onNavigateToSubjects: () -> Unit
 ) {
-    val context = LocalContext.current
     val stats by viewModel.userStats.collectAsState()
     val lockerState by viewModel.lockerState.collectAsState()
+    val subjectProgressList by viewModel.subjectProgress.collectAsState()
 
-    val studentName = stats?.userName ?: "بطل الثانوية"
+    val studentName = stats?.userName?.ifBlank { "بطل الثانوية" } ?: "بطل الثانوية"
     val streakDays = stats?.streakDays ?: 1
     val focusMins = stats?.totalFocusMinutes ?: 0
     val answered = stats?.totalAnswered ?: 0
     val correct = stats?.correctCount ?: 0
     val accuracy = if (answered > 0) (correct.toFloat() / answered.toFloat()) else 0.85f
+    val overallScore = stats?.overallMasteryScore ?: (accuracy * 100f)
 
     Column(
         modifier = Modifier
@@ -122,12 +122,16 @@ fun TodayScreen(
                                 text = if (isPenalty) "وضع العقوبة نشط" else "القفل المشدد نشط",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isPenalty) AlertCrimson else InkTitanium
+                                color = if (isPenalty) AlertCrimson else InkTitanium,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             Text(
                                 text = "متبقي $remainingMins دقيقة",
                                 fontSize = 11.sp,
-                                color = InkSpaceGray
+                                color = InkSpaceGray,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -165,8 +169,8 @@ fun TodayScreen(
                             color = AccentGold
                         )
                         RingMetricItem(
-                            label = "الدقة",
-                            value = "${(accuracy * 100).toInt()}%",
+                            label = "الإتقان العام",
+                            value = "${overallScore.toInt()}%",
                             color = InkTitanium
                         )
                     }
@@ -187,14 +191,18 @@ fun TodayScreen(
                         Text(
                             text = "الضربات",
                             fontSize = 11.sp,
-                            color = InkSpaceGray
+                            color = InkSpaceGray,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "$strikes / 3",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (strikes > 0) AlertCrimson else InkTitanium
+                            color = if (strikes > 0) AlertCrimson else InkTitanium,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -205,14 +213,18 @@ fun TodayScreen(
                         Text(
                             text = "تأجيل الطوارئ",
                             fontSize = 11.sp,
-                            color = InkSpaceGray
+                            color = InkSpaceGray,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "$snoozeTokens / 2",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (snoozeTokens > 0) AccentEmerald else InkSpaceGray
+                            color = if (snoozeTokens > 0) AccentEmerald else InkSpaceGray,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -226,11 +238,11 @@ fun TodayScreen(
                 height = 46.dp
             )
 
-            // Subject Mastery Breakdown
+            // Subject Mastery Breakdown (Scope & Scores)
             AppleCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -238,29 +250,36 @@ fun TodayScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "الإتقان الدراسي",
+                            text = "سكور المواد والإتقان الأكاديمي",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = InkTitanium
+                            color = InkTitanium,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Text(
-                            text = "عرض الأسئلة",
-                            fontSize = 11.sp,
+                            text = "معدل: ${overallScore.toInt()}%",
+                            fontSize = 12.sp,
                             color = AccentEmerald,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
-                    val subjects = listOf(
-                        "النحو العربي" to 0.88f,
-                        "English" to 0.76f,
-                        "التاريخ" to 0.92f,
-                        "البرمجة و AI" to 0.94f
+                    val subjectsList = listOf(
+                        Triple("اللغة العربية والنحو", "ARABIC", stats?.arabicScore ?: 88f),
+                        Triple("English Language", "ENGLISH", stats?.englishScore ?: 75f),
+                        Triple("التاريخ المصري والعربي", "HISTORY", stats?.historyScore ?: 90f),
+                        Triple("البرمجة والذكاء الاصطناعي", "PROGRAMMING", stats?.programmingScore ?: 95f)
                     )
 
-                    subjects.forEach { (name, prog) ->
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    subjectsList.forEach { (name, code, fallbackScore) ->
+                        val entity = subjectProgressList.find { it.subject == code }
+                        val score = if (entity != null && entity.answeredCount > 0) entity.accuracy else fallbackScore
+                        val progressFloat = (score / 100f).coerceIn(0f, 1f)
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -268,17 +287,21 @@ fun TodayScreen(
                                 Text(
                                     text = name,
                                     fontSize = 12.sp,
-                                    color = InkTitanium
+                                    color = InkTitanium,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                                 Text(
-                                    text = "${(prog * 100).toInt()}%",
+                                    text = "${score.toInt()}%",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = InkTitanium
+                                    color = InkTitanium,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                             LinearProgressIndicator(
-                                progress = prog,
+                                progress = progressFloat,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(5.dp)
@@ -308,13 +331,17 @@ fun RingMetricItem(label: String, value: String, color: androidx.compose.ui.grap
             Text(
                 text = label,
                 fontSize = 10.sp,
-                color = InkSpaceGray
+                color = InkSpaceGray,
+                maxLines = 1,
+                softWrap = false
             )
             Text(
                 text = value,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = InkTitanium
+                color = InkTitanium,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

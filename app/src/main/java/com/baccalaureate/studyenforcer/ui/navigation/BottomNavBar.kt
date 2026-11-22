@@ -86,7 +86,9 @@ fun BottomNavBar(
                             text = screen.titleAr,
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = iconColor
+                            color = iconColor,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

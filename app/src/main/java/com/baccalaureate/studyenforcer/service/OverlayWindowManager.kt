@@ -47,11 +47,9 @@ class OverlayWindowManager(
 
         scope.launch {
             try {
-                val question = studyRepository.getRandomQuestion() ?: return@launch
+                val question = studyRepository.getSmartNextQuestion() ?: return@launch
                 currentQuestionFlow.value = question
 
-                val stats = studyRepository.getUserStatsFlow()
-                // Collect latest stats
                 scope.launch {
                     studyRepository.getUserStatsFlow().collect { s ->
                         if (s != null) {
@@ -113,8 +111,8 @@ class OverlayWindowManager(
                                     onNextQuestionRequested = {
                                         scope.launch {
                                             try {
-                                                val nextQ = studyRepository.getRandomQuestion()
-                                                if (nextQ != null) {
+                                                val nextQ = studyRepository.getSmartNextQuestion(excludeId = activeQuestion?.id)
+                                                if (nextQ != null && nextQ.id != activeQuestion?.id) {
                                                     currentQuestionFlow.value = nextQ
                                                 } else {
                                                     dismissOverlay()

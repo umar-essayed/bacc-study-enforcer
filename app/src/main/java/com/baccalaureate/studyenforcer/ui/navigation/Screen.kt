@@ -23,6 +23,9 @@ sealed class Screen(val route: String, val titleAr: String, val titleEn: String,
     object ActiveQuiz : Screen("quiz/{questionId}", "الاختبار", "Quiz", Icons.Outlined.Today) {
         fun createRoute(questionId: Long = -1L): String = "quiz/$questionId"
     }
+    object LessonReader : Screen("lesson_reader/{lessonId}", "الدرس", "Lesson", Icons.Outlined.AutoStories) {
+        fun createRoute(lessonId: Long): String = "lesson_reader/$lessonId"
+    }
     object TrueFalse : Screen("true_false?subject={subject}&topic={topic}", "صح أم خطأ", "True / False", Icons.Outlined.Bolt) {
         fun createRoute(subject: String = "ALL", topic: String? = null): String {
             return if (topic != null) "true_false?subject=$subject&topic=$topic" else "true_false?subject=$subject"

@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.baccalaureate.studyenforcer.ui.theme.InkSpaceGray
@@ -35,7 +36,10 @@ fun HeaderBar(
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = InkTitanium,
-                letterSpacing = (-0.5).sp
+                letterSpacing = (-0.5).sp,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
             )
             if (subtitle != null) {
                 Text(
@@ -43,7 +47,9 @@ fun HeaderBar(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Normal,
                     color = InkSpaceGray,
-                    modifier = Modifier.padding(top = 2.dp)
+                    modifier = Modifier.padding(top = 2.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

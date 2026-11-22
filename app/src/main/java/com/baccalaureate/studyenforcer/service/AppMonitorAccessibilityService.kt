@@ -14,6 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.util.Collections
+import java.util.HashSet
 
 class AppMonitorAccessibilityService : AccessibilityService() {
 
@@ -26,44 +28,80 @@ class AppMonitorAccessibilityService : AccessibilityService() {
     private var studyRepository: StudyRepository? = null
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
+    // High-speed In-Memory Cache for 0ms latency synchronous interception
+    private val blockedPackagesCache = Collections.synchronizedSet(HashSet<String>())
+    private var isLockerActiveCached = false
+    private var isPenaltyModeCached = false
+    private var penaltyReasonCached = ""
+
     override fun onServiceConnected() {
         super.onServiceConnected()
-        studyRepository = EntryPointAccessors.fromApplication(
+        val repo = EntryPointAccessors.fromApplication(
             applicationContext,
             AccessibilityEntryPoint::class.java
         ).studyRepository()
+        studyRepository = repo
+
+        // Observe blocked apps and locker state into fast memory cache
+        scope.launch {
+            repo.getBlockedAppsFlow().collect { apps ->
+                val set = apps.filter { it.isBlocked }.map { it.packageName }.toSet()
+                blockedPackagesCache.clear()
+                blockedPackagesCache.addAll(set)
+                // Always ensure WhatsApp is in the blocked cache
+                blockedPackagesCache.add("com.whatsapp")
+                blockedPackagesCache.add("com.whatsapp.w4b")
+            }
+        }
+
+        scope.launch {
+            repo.getLockerStateFlow().collect { locker ->
+                isLockerActiveCached = locker?.isActive == true
+                isPenaltyModeCached = locker?.isPenaltyMode == true
+                penaltyReasonCached = locker?.penaltyReason ?: ""
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        if (event == null) return
+        val eventType = event.eventType
+        if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return
 
         val packageName = event.packageName?.toString() ?: return
-        val currentRepo = studyRepository ?: return
 
-        // Ignore our own app package
+        // Ignore our own application package
         if (packageName == applicationContext.packageName) return
 
-        scope.launch {
-            val lockerState = currentRepo.getLockerState()
-            val isLockActive = lockerState?.isActive == true
-
-            if (!isLockActive) return@launch
-
-            // 1. Anti-Cheat Self-Protection against Android Settings
-            if (packageName == "com.android.settings") {
-                if (isInspectingOurApp(rootInActiveWindow)) {
-                    performGlobalAction(GLOBAL_ACTION_HOME)
-                    launchLockScreen(isPenalty = lockerState?.isPenaltyMode == true, reason = "محاولة تجاوز القفل عبر إعدادات النظام")
-                    return@launch
-                }
+        // 1. Anti-Cheat Self-Protection against Android Settings
+        if (packageName == "com.android.settings") {
+            if (isInspectingOurApp(rootInActiveWindow)) {
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                launchLockScreen(isPenalty = isPenaltyModeCached, reason = "محاولة تجاوز القفل عبر إعدادات النظام")
+                return
             }
+        }
 
-            // 2. Check if the app is on the blocked list
-            val isBlocked = currentRepo.isAppBlocked(packageName)
-            if (isBlocked) {
+        // 2. High-Speed Interception during Focus Lock Mode
+        if (isLockerActiveCached) {
+            val isTargetBlocked = blockedPackagesCache.contains(packageName) ||
+                    packageName.startsWith("com.whatsapp") ||
+                    packageName.startsWith("com.instagram") ||
+                    packageName.startsWith("com.facebook") ||
+                    packageName.startsWith("com.zhiliaoapp") ||
+                    packageName.startsWith("com.ss.android.ugc") ||
+                    packageName.startsWith("org.telegram") ||
+                    packageName.startsWith("com.twitter") ||
+                    packageName.startsWith("com.snapchat")
+
+            if (isTargetBlocked) {
                 // Intercept immediately: send user HOME and launch minimalist Lock screen
                 performGlobalAction(GLOBAL_ACTION_HOME)
-                launchLockScreen(isPenalty = lockerState?.isPenaltyMode == true, reason = lockerState?.penaltyReason ?: "")
+                launchLockScreen(
+                    isPenalty = isPenaltyModeCached,
+                    reason = if (penaltyReasonCached.isNotBlank()) penaltyReasonCached else "وضع التركيز الصارم نشط"
+                )
             }
         }
     }
@@ -99,7 +137,8 @@ class AppMonitorAccessibilityService : AccessibilityService() {
         val intent = Intent(applicationContext, LockScreenActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             putExtra(LockScreenActivity.EXTRA_IS_PENALTY, isPenalty)
             putExtra(LockScreenActivity.EXTRA_REASON, reason)
         }

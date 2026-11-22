@@ -112,10 +112,11 @@ fun OverlayQuestionDialog(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "${question.subject} • ${question.topic}",
+                                text = if (question.lessonTitle.isNotBlank()) "${question.subject} • ${question.lessonTitle}" else "${question.subject} • ${question.topic}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = InkTitanium
+                                color = InkTitanium,
+                                maxLines = 1
                             )
                         }
 
@@ -302,7 +303,7 @@ fun OverlayQuestionDialog(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = if (isCorrect) "إجابة صحيحة" else "خطأ — التفسير:",
+                                text = if (isCorrect) "إجابة صحيحة ✓" else "خطأ — التفسير المعتمد:",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isCorrect) AccentEmerald else AlertCrimson
@@ -316,27 +317,41 @@ fun OverlayQuestionDialog(
                         }
                     }
 
-                    // Bottom Action Button
+                    // Bottom Action Buttons
                     if (isSubmitted) {
                         if (isCorrect) {
                             MinimalButton(
-                                text = "استمرار",
+                                text = "استمرار ومتابعة",
                                 onClick = onDismissAfterCorrect,
                                 variant = ButtonStyleVariant.PRIMARY,
                                 height = 44.dp
                             )
                         } else {
-                            MinimalButton(
-                                text = "السؤال التالي",
-                                onClick = {
-                                    // Reset local state immediately and request next
-                                    selectedIndex = null
-                                    isSubmitted = false
-                                    onNextQuestionRequested()
-                                },
-                                variant = ButtonStyleVariant.DESTRUCTIVE,
-                                height = 44.dp
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    MinimalButton(
+                                        text = "السؤال التالي",
+                                        onClick = {
+                                            selectedIndex = null
+                                            isSubmitted = false
+                                            onNextQuestionRequested()
+                                        },
+                                        variant = ButtonStyleVariant.PRIMARY,
+                                        height = 44.dp
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    MinimalButton(
+                                        text = "إغلاق النافذة",
+                                        onClick = onEmergencyExit,
+                                        variant = ButtonStyleVariant.SECONDARY,
+                                        height = 44.dp
+                                    )
+                                }
+                            }
                         }
                     }
                 }

@@ -19,11 +19,35 @@ interface QuestionDao {
     @Query("SELECT * FROM questions WHERE subject = :subject AND topic = :topic ORDER BY id ASC")
     fun getQuestionsBySubjectAndTopic(subject: String, topic: String): Flow<List<QuestionEntity>>
 
+    @Query("SELECT * FROM questions WHERE lessonId = :lessonId ORDER BY id ASC")
+    fun getQuestionsByLesson(lessonId: Long): Flow<List<QuestionEntity>>
+
     @Query("SELECT DISTINCT topic FROM questions WHERE subject = :subject")
     fun getTopicsForSubject(subject: String): Flow<List<String>>
 
     @Query("SELECT * FROM questions WHERE isAnswered = 1 AND lastAnswerCorrect = 0 ORDER BY id DESC")
     fun getMistakeQuestions(): Flow<List<QuestionEntity>>
+
+    @Query("SELECT * FROM questions WHERE subject = :subject AND isAnswered = 1 AND lastAnswerCorrect = 0 ORDER BY id DESC")
+    fun getMistakeQuestionsBySubject(subject: String): Flow<List<QuestionEntity>>
+
+    // Smart Queue: 1. Unanswered within student scope
+    @Query("SELECT * FROM questions WHERE isAnswered = 0 AND (lessonId = 0 OR lessonId <= :maxLessonId) ORDER BY timesShown ASC, RANDOM() LIMIT 1")
+    suspend fun getNextUnansweredQuestion(maxLessonId: Long): QuestionEntity?
+
+    @Query("SELECT * FROM questions WHERE subject = :subject AND isAnswered = 0 AND (lessonId = 0 OR lessonId <= :maxLessonId) ORDER BY timesShown ASC, RANDOM() LIMIT 1")
+    suspend fun getNextUnansweredQuestionBySubject(subject: String, maxLessonId: Long): QuestionEntity?
+
+    // Smart Queue: 2. Reinforce Mistakes within student scope
+    @Query("SELECT * FROM questions WHERE isAnswered = 1 AND lastAnswerCorrect = 0 AND (lessonId = 0 OR lessonId <= :maxLessonId) ORDER BY timesShown ASC, RANDOM() LIMIT 1")
+    suspend fun getNextMistakeQuestion(maxLessonId: Long): QuestionEntity?
+
+    // Smart Queue: 3. Least shown questions
+    @Query("SELECT * FROM questions WHERE (lessonId = 0 OR lessonId <= :maxLessonId) ORDER BY timesShown ASC, RANDOM() LIMIT 1")
+    suspend fun getNextQuestionOrdered(maxLessonId: Long): QuestionEntity?
+
+    @Query("SELECT * FROM questions WHERE id = :id")
+    suspend fun getQuestionById(id: Long): QuestionEntity?
 
     @Query("SELECT * FROM questions ORDER BY RANDOM() LIMIT 1")
     suspend fun getRandomQuestion(): QuestionEntity?
@@ -36,6 +60,9 @@ interface QuestionDao {
 
     @Query("UPDATE questions SET isAnswered = 1, lastAnswerCorrect = :isCorrect WHERE id = :id")
     suspend fun markQuestionAnswered(id: Long, isCorrect: Boolean)
+
+    @Query("UPDATE questions SET timesShown = timesShown + 1 WHERE id = :id")
+    suspend fun incrementTimesShown(id: Long)
 
     @Query("SELECT COUNT(*) FROM questions")
     suspend fun getQuestionCount(): Int

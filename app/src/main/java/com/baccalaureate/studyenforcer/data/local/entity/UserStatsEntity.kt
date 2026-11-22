@@ -16,5 +16,12 @@ data class UserStatsEntity(
     val snoozeTokensRemaining: Int = 2, // Max 2 per day
     val lastSnoozeResetDate: String = "",
     val totalFocusMinutes: Int = 0,
-    val lastActiveDate: String = ""
+    val lastActiveDate: String = "",
+    val currentLessonId: Long = 101, // Tracks current lesson
+    val unlockedLessonId: Long = 101, // Max unlocked lesson
+    val overallMasteryScore: Float = 0f, // 0..100%
+    val arabicScore: Float = 0f,
+    val englishScore: Float = 0f,
+    val historyScore: Float = 0f,
+    val programmingScore: Float = 0f
 )

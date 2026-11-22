@@ -48,6 +48,8 @@ import com.baccalaureate.studyenforcer.ui.screens.games.SyntaxFillScreen
 import com.baccalaureate.studyenforcer.ui.screens.games.SyntaxFillViewModel
 import com.baccalaureate.studyenforcer.ui.screens.games.TrueFalseScreen
 import com.baccalaureate.studyenforcer.ui.screens.games.TrueFalseViewModel
+import com.baccalaureate.studyenforcer.ui.screens.lessons.LessonReaderScreen
+import com.baccalaureate.studyenforcer.ui.screens.lessons.LessonReaderViewModel
 import com.baccalaureate.studyenforcer.ui.screens.locker.FocusLockerScreen
 import com.baccalaureate.studyenforcer.ui.screens.locker.FocusLockerViewModel
 import com.baccalaureate.studyenforcer.ui.screens.onboarding.OnboardingScreen
@@ -101,36 +103,16 @@ class MainActivity : ComponentActivity() {
                             Screen.Onboarding.route
                         }
 
-                        // Listen to in-app quiz triggers from Foreground Service
-                        DisposableEffect(Unit) {
-                            val receiver = object : BroadcastReceiver() {
-                                override fun onReceive(context: Context?, intent: Intent?) {
-                                    val qId = intent?.getLongExtra("question_id", -1L) ?: -1L
-                                    navController.navigate(Screen.ActiveQuiz.createRoute(qId)) {
-                                        launchSingleTop = true
-                                    }
-                                }
-                            }
-                            val filter = IntentFilter(StudyEnforcementService.ACTION_TRIGGER_IN_APP_QUIZ)
-                            ContextCompat.registerReceiver(
-                                this@MainActivity,
-                                receiver,
-                                filter,
-                                ContextCompat.RECEIVER_NOT_EXPORTED
-                            )
-                            onDispose {
-                                try {
-                                    unregisterReceiver(receiver)
-                                } catch (e: Exception) {
-                                    // Ignored
-                                }
-                            }
-                        }
+                        // Register In-App Quiz Broadcast Receiver
+                        InAppQuizBroadcastHandler(
+                            context = this@MainActivity,
+                            navController = navController
+                        )
 
                         MainScaffold(
                             navController = navController,
-                            studyRepository = studyRepository,
-                            startDestination = startDestination
+                            startDestination = startDestination,
+                            studyRepository = studyRepository
                         )
                     }
                 }
@@ -140,10 +122,41 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun InAppQuizBroadcastHandler(
+    context: Context,
+    navController: NavHostController
+) {
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                if (intent?.action == StudyEnforcementService.ACTION_TRIGGER_IN_APP_QUIZ) {
+                    navController.navigate(Screen.ActiveQuiz.createRoute(-1L))
+                }
+            }
+        }
+        val filter = IntentFilter(StudyEnforcementService.ACTION_TRIGGER_IN_APP_QUIZ)
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+
+        onDispose {
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (e: Exception) {
+                // Ignore if unregistered
+            }
+        }
+    }
+}
+
+@Composable
 fun MainScaffold(
     navController: NavHostController,
-    studyRepository: StudyRepository,
-    startDestination: String
+    startDestination: String,
+    studyRepository: StudyRepository
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: startDestination
@@ -195,7 +208,6 @@ fun MainScaffold(
                     TodayScreen(
                         viewModel = viewModel,
                         onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                        onNavigateToLocker = { navController.navigate(Screen.FocusLocker.route) },
                         onNavigateToSubjects = { navController.navigate(Screen.Subjects.route) },
                         onStartInAppQuiz = { navController.navigate(Screen.ActiveQuiz.createRoute(-1L)) }
                     )
@@ -207,6 +219,9 @@ fun MainScaffold(
                         viewModel = viewModel,
                         onSolveQuestion = { questionId ->
                             navController.navigate(Screen.ActiveQuiz.createRoute(questionId))
+                        },
+                        onOpenLesson = { lessonId ->
+                            navController.navigate(Screen.LessonReader.createRoute(lessonId))
                         }
                     )
                 }
@@ -230,6 +245,26 @@ fun MainScaffold(
                         },
                         onNavigateToSyntaxFill = { subject, topic ->
                             navController.navigate(Screen.SyntaxFill.createRoute(subject, topic))
+                        }
+                    )
+                }
+
+                // Lesson Reader Screen
+                composable(
+                    route = Screen.LessonReader.route,
+                    arguments = listOf(
+                        navArgument("lessonId") {
+                            type = NavType.StringType
+                            defaultValue = "101"
+                        }
+                    )
+                ) {
+                    val viewModel: LessonReaderViewModel = hiltViewModel()
+                    LessonReaderScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                        onStartLessonQuiz = {
+                            navController.navigate(Screen.ActiveQuiz.createRoute(-1L))
                         }
                     )
                 }

@@ -11,6 +11,12 @@ data class QuestionEntity(
     val id: Long = 0,
     @SerializedName("subject")
     val subject: String, // ARABIC, ENGLISH, HISTORY, PROGRAMMING
+    @SerializedName("unitNumber")
+    val unitNumber: Int = 1,
+    @SerializedName("lessonId")
+    val lessonId: Long = 0,
+    @SerializedName("lessonTitle")
+    val lessonTitle: String = "",
     @SerializedName("topic")
     val topic: String,
     @SerializedName("questionText")
@@ -32,5 +38,6 @@ data class QuestionEntity(
     @SerializedName("difficulty")
     val difficulty: String = "MEDIUM", // EASY, MEDIUM, HARD
     val isAnswered: Boolean = false,
-    val lastAnswerCorrect: Boolean = false
+    val lastAnswerCorrect: Boolean = false,
+    val timesShown: Int = 0
 )

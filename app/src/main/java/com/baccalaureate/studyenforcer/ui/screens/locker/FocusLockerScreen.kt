@@ -1,5 +1,6 @@
 package com.baccalaureate.studyenforcer.ui.screens.locker
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,15 +20,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.AutoFixHigh
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PhonelinkLock
 import androidx.compose.material.icons.outlined.Policy
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,9 +50,12 @@ import com.baccalaureate.studyenforcer.ui.components.AppleCard
 import com.baccalaureate.studyenforcer.ui.components.ButtonStyleVariant
 import com.baccalaureate.studyenforcer.ui.components.HeaderBar
 import com.baccalaureate.studyenforcer.ui.components.MinimalButton
+import com.baccalaureate.studyenforcer.ui.theme.AccentEmerald
 import com.baccalaureate.studyenforcer.ui.theme.AccentGold
+import com.baccalaureate.studyenforcer.ui.theme.AlertCrimson
 import com.baccalaureate.studyenforcer.ui.theme.BorderHairline
 import com.baccalaureate.studyenforcer.ui.theme.CanvasAlabaster
+import com.baccalaureate.studyenforcer.ui.theme.CrimsonLight
 import com.baccalaureate.studyenforcer.ui.theme.GoldLight
 import com.baccalaureate.studyenforcer.ui.theme.InkSpaceGray
 import com.baccalaureate.studyenforcer.ui.theme.InkTitanium
@@ -55,8 +69,11 @@ fun FocusLockerScreen(
 ) {
     val lockerState by viewModel.lockerState.collectAsState()
     val selectedDuration by viewModel.selectedDurationMinutes.collectAsState()
+    val deviceApps by viewModel.deviceApps.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
 
     val isLocked = lockerState?.isActive == true
+    var showAppsList by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -76,6 +93,7 @@ fun FocusLockerScreen(
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Main Locker Card
             AppleCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -107,20 +125,26 @@ fun FocusLockerScreen(
                                 text = "جلسة القفل نشطة",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = InkTitanium
+                                color = InkTitanium,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             Text(
                                 text = "%02d:%02d".format(mins, secs),
                                 fontSize = 38.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AccentGold,
-                                modifier = Modifier.padding(top = 4.dp)
+                                modifier = Modifier.padding(top = 4.dp),
+                                maxLines = 1,
+                                softWrap = false
                             )
                             Text(
                                 text = "محمي من الإلغاء المبكر",
                                 fontSize = 11.sp,
                                 color = InkSpaceGray,
-                                modifier = Modifier.padding(top = 2.dp)
+                                modifier = Modifier.padding(top = 2.dp),
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     } else {
@@ -129,7 +153,9 @@ fun FocusLockerScreen(
                                 text = "اختر مدة الجلسة",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = InkTitanium
+                                color = InkTitanium,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
 
@@ -161,7 +187,9 @@ fun FocusLockerScreen(
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                         color = if (isSelected) SurfaceWhite else InkTitanium,
-                                        textAlign = TextAlign.Center
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -173,6 +201,172 @@ fun FocusLockerScreen(
                             variant = ButtonStyleVariant.PRIMARY,
                             height = 46.dp
                         )
+                    }
+                }
+            }
+
+            // Installed Apps & Auto-Block Distractions Section
+            AppleCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Apps,
+                                contentDescription = null,
+                                tint = InkTitanium,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "إدارة التطبيقات المحظورة",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = InkTitanium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Text(
+                                    text = "${deviceApps.count { it.isBlocked }} تطبيقاً محظوراً حالياً",
+                                    fontSize = 11.sp,
+                                    color = InkSpaceGray,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.loadInstalledApps() },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            if (isScanning) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = AccentEmerald
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Refresh,
+                                    contentDescription = "تحديث",
+                                    tint = InkSpaceGray,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // 1-Tap Auto-Block Distractions Button
+                    MinimalButton(
+                        text = "⚡ حظر جميع المشتتات المكتشفة تلقائياً",
+                        onClick = { viewModel.autoBlockAllDistractions() },
+                        variant = ButtonStyleVariant.SECONDARY,
+                        height = 40.dp
+                    )
+
+                    // Toggle to expand full apps list
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showAppsList = !showAppsList }
+                            .background(SurfaceSubtle)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (showAppsList) "إخفاء قائمة التطبيقات" else "عرض وتخصيص قائمة التطبيقات (${deviceApps.size})",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = InkTitanium,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Icon(
+                            imageVector = Icons.Outlined.ChevronRight,
+                            contentDescription = null,
+                            tint = InkSpaceGray,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    AnimatedVisibility(visible = showAppsList) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            deviceApps.forEach { app ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(SurfaceWhite)
+                                        .border(1.dp, BorderHairline, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = app.appName,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = InkTitanium,
+                                                maxLines = 1
+                                            )
+                                            if (app.isDistraction) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(CrimsonLight)
+                                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "مشتت",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = AlertCrimson
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Text(
+                                            text = app.packageName,
+                                            fontSize = 10.sp,
+                                            color = InkSpaceGray,
+                                            maxLines = 1
+                                        )
+                                    }
+
+                                    Switch(
+                                        checked = app.isBlocked,
+                                        onCheckedChange = { isChecked ->
+                                            viewModel.toggleAppBlocked(app.packageName, isChecked)
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = SurfaceWhite,
+                                            checkedTrackColor = AlertCrimson,
+                                            uncheckedThumbColor = InkSpaceGray,
+                                            uncheckedTrackColor = SurfaceSubtle
+                                        )
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -198,7 +392,9 @@ fun FocusLockerScreen(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = InkTitanium,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Icon(
                         imageVector = Icons.Outlined.ChevronRight,

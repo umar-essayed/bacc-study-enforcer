@@ -76,11 +76,11 @@ fun ActiveQuizScreen(
     var currentStrikes by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(targetQuestionId) {
         val q = if (targetQuestionId != null && targetQuestionId > 0) {
-            studyRepository.getRandomQuestion() // or specific
+            studyRepository.getQuestionById(targetQuestionId) ?: studyRepository.getSmartNextQuestion()
         } else {
-            studyRepository.getRandomQuestion()
+            studyRepository.getSmartNextQuestion()
         }
         question = q
     }
@@ -263,8 +263,8 @@ fun ActiveQuizScreen(
                                     text = "السؤال التالي",
                                     onClick = {
                                         scope.launch {
-                                            val next = studyRepository.getRandomQuestion()
-                                            if (next != null) {
+                                            val next = studyRepository.getSmartNextQuestion(excludeId = activeQ.id)
+                                            if (next != null && next.id != activeQ.id) {
                                                 selectedIndex = null
                                                 isSubmitted = false
                                                 question = next

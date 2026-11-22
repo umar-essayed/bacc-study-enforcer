@@ -4,12 +4,14 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.baccalaureate.studyenforcer.data.local.dao.BlockedAppDao
 import com.baccalaureate.studyenforcer.data.local.dao.GamesDao
+import com.baccalaureate.studyenforcer.data.local.dao.LessonDao
 import com.baccalaureate.studyenforcer.data.local.dao.LockerStateDao
 import com.baccalaureate.studyenforcer.data.local.dao.QuestionDao
 import com.baccalaureate.studyenforcer.data.local.dao.UserStatsDao
 import com.baccalaureate.studyenforcer.data.local.entity.BlockedAppEntity
 import com.baccalaureate.studyenforcer.data.local.entity.ErrorHunterQuestionEntity
 import com.baccalaureate.studyenforcer.data.local.entity.GrammarMatchPairEntity
+import com.baccalaureate.studyenforcer.data.local.entity.LessonEntity
 import com.baccalaureate.studyenforcer.data.local.entity.LockerStateEntity
 import com.baccalaureate.studyenforcer.data.local.entity.QuestionEntity
 import com.baccalaureate.studyenforcer.data.local.entity.SubjectProgressEntity
@@ -18,6 +20,7 @@ import com.baccalaureate.studyenforcer.data.local.entity.UserStatsEntity
 @Database(
     entities = [
         QuestionEntity::class,
+        LessonEntity::class,
         UserStatsEntity::class,
         SubjectProgressEntity::class,
         BlockedAppEntity::class,
@@ -25,11 +28,12 @@ import com.baccalaureate.studyenforcer.data.local.entity.UserStatsEntity
         GrammarMatchPairEntity::class,
         ErrorHunterQuestionEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun questionDao(): QuestionDao
+    abstract fun lessonDao(): LessonDao
     abstract fun userStatsDao(): UserStatsDao
     abstract fun blockedAppDao(): BlockedAppDao
     abstract fun lockerStateDao(): LockerStateDao

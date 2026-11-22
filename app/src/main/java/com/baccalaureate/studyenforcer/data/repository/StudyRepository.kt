@@ -5,14 +5,17 @@ import com.baccalaureate.studyenforcer.data.local.AppDatabase
 import com.baccalaureate.studyenforcer.data.local.entity.BlockedAppEntity
 import com.baccalaureate.studyenforcer.data.local.entity.ErrorHunterQuestionEntity
 import com.baccalaureate.studyenforcer.data.local.entity.GrammarMatchPairEntity
+import com.baccalaureate.studyenforcer.data.local.entity.LessonEntity
 import com.baccalaureate.studyenforcer.data.local.entity.LockerStateEntity
 import com.baccalaureate.studyenforcer.data.local.entity.QuestionEntity
 import com.baccalaureate.studyenforcer.data.local.entity.SubjectProgressEntity
 import com.baccalaureate.studyenforcer.data.local.entity.UserStatsEntity
+import com.baccalaureate.studyenforcer.service.InstalledAppScanner
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
@@ -25,17 +28,65 @@ class StudyRepository(
     private val gson: Gson
 ) {
     private val questionDao = db.questionDao()
+    private val lessonDao = db.lessonDao()
     private val userStatsDao = db.userStatsDao()
     private val blockedAppDao = db.blockedAppDao()
     private val lockerStateDao = db.lockerStateDao()
     private val gamesDao = db.gamesDao()
+    private val appScanner = InstalledAppScanner(context)
 
+    // --- Curriculum & Lessons API ---
+    fun getLessonsBySubject(subject: String = "ARABIC"): Flow<List<LessonEntity>> =
+        lessonDao.getLessonsBySubject(subject)
+
+    fun getLessonByIdFlow(lessonId: Long): Flow<LessonEntity?> =
+        lessonDao.getLessonByIdFlow(lessonId)
+
+    suspend fun getLessonById(lessonId: Long): LessonEntity? =
+        lessonDao.getLessonById(lessonId)
+
+    suspend fun updateLessonProgress(lessonId: Long, isCompleted: Boolean, score: Int) {
+        lessonDao.updateLessonProgress(lessonId, isCompleted, score)
+        // Unlock next lesson in sequence
+        val nextLessonId = when (lessonId) {
+            101L -> 102L
+            102L -> 103L
+            103L -> 201L
+            201L -> 202L
+            202L -> 203L
+            203L -> 301L
+            301L -> 302L
+            302L -> 303L
+            else -> lessonId
+        }
+        if (nextLessonId != lessonId) {
+            lessonDao.unlockLesson(nextLessonId)
+            val currentStats = userStatsDao.getUserStats() ?: UserStatsEntity()
+            if (nextLessonId > currentStats.unlockedLessonId) {
+                userStatsDao.insertOrUpdateStats(
+                    currentStats.copy(
+                        currentLessonId = nextLessonId,
+                        unlockedLessonId = nextLessonId
+                    )
+                )
+            }
+        }
+        calculateAndUpdateMasteryScores()
+    }
+
+    // --- Questions API ---
     fun getAllQuestions(): Flow<List<QuestionEntity>> = questionDao.getAllQuestions()
     fun getQuestionsBySubject(subject: String): Flow<List<QuestionEntity>> =
         questionDao.getQuestionsBySubject(subject)
 
     fun getQuestionsBySubjectAndTopic(subject: String, topic: String): Flow<List<QuestionEntity>> =
         questionDao.getQuestionsBySubjectAndTopic(subject, topic)
+
+    fun getQuestionsByLesson(lessonId: Long): Flow<List<QuestionEntity>> =
+        questionDao.getQuestionsByLesson(lessonId)
+
+    suspend fun getQuestionById(id: Long): QuestionEntity? =
+        questionDao.getQuestionById(id)
 
     fun getQuestionsFiltered(subject: String = "ALL", topic: String? = null): Flow<List<QuestionEntity>> {
         return when {
@@ -45,22 +96,67 @@ class StudyRepository(
         }
     }
 
-    suspend fun recordQuestionAnswer(questionId: Long, isCorrect: Boolean) {
-        questionDao.markQuestionAnswered(questionId, isCorrect)
-    }
-
     fun getTopicsForSubject(subject: String): Flow<List<String>> =
         questionDao.getTopicsForSubject(subject)
 
     fun getMistakeQuestions(): Flow<List<QuestionEntity>> = questionDao.getMistakeQuestions()
 
-    suspend fun getRandomQuestion(): QuestionEntity? = questionDao.getRandomQuestion()
+    fun getMistakeQuestionsBySubject(subject: String): Flow<List<QuestionEntity>> =
+        questionDao.getMistakeQuestionsBySubject(subject)
+
+    /**
+     * Smart Non-Repeating Question Selector:
+     * 1. Priority: Unanswered questions within student unlocked curriculum scope
+     * 2. Priority: Mistakes to reinforce learning
+     * 3. Priority: Least shown questions
+     * Guaranteed never to repeat the current question immediately.
+     */
+    suspend fun getSmartNextQuestion(subject: String? = null, excludeId: Long? = null): QuestionEntity? {
+        val stats = userStatsDao.getUserStats()
+        val maxLesson = stats?.unlockedLessonId ?: 9999L
+
+        // 1. Try unseen / unanswered questions
+        var q = if (!subject.isNullOrBlank() && subject != "ALL") {
+            questionDao.getNextUnansweredQuestionBySubject(subject, maxLesson)
+        } else {
+            questionDao.getNextUnansweredQuestion(maxLesson)
+        }
+
+        if (q != null && q.id != excludeId) {
+            questionDao.incrementTimesShown(q.id)
+            return q
+        }
+
+        // 2. Try mistake questions
+        q = questionDao.getNextMistakeQuestion(maxLesson)
+        if (q != null && q.id != excludeId) {
+            questionDao.incrementTimesShown(q.id)
+            return q
+        }
+
+        // 3. Fallback to least shown questions
+        q = questionDao.getNextQuestionOrdered(maxLesson)
+        if (q != null && q.id != excludeId) {
+            questionDao.incrementTimesShown(q.id)
+            return q
+        }
+
+        val fallback = questionDao.getRandomQuestion()
+        if (fallback != null) {
+            questionDao.incrementTimesShown(fallback.id)
+        }
+        return fallback
+    }
+
+    suspend fun getRandomQuestion(): QuestionEntity? = getSmartNextQuestion()
+
     suspend fun getRandomQuestionBySubject(subject: String): QuestionEntity? =
-        questionDao.getRandomQuestionBySubject(subject)
+        getSmartNextQuestion(subject = subject)
 
     suspend fun getRandomQuestionBySubjectAndTopic(subject: String, topic: String): QuestionEntity? =
         questionDao.getRandomQuestionBySubjectAndTopic(subject, topic)
 
+    // --- Stats & User Progress ---
     fun getUserStatsFlow(): Flow<UserStatsEntity?> = userStatsDao.getUserStatsFlow()
     fun getAllSubjectProgress(): Flow<List<SubjectProgressEntity>> =
         userStatsDao.getAllSubjectProgress()
@@ -68,6 +164,7 @@ class StudyRepository(
     fun getLockerStateFlow(): Flow<LockerStateEntity?> = lockerStateDao.getLockerStateFlow()
     suspend fun getLockerState(): LockerStateEntity? = lockerStateDao.getLockerState()
 
+    // --- Blocked Apps Management ---
     fun getBlockedAppsFlow(): Flow<List<BlockedAppEntity>> = blockedAppDao.getAllBlockedApps()
     suspend fun isAppBlocked(packageName: String): Boolean = blockedAppDao.isAppBlocked(packageName)
 
@@ -79,6 +176,21 @@ class StudyRepository(
         blockedAppDao.insertApp(BlockedAppEntity(packageName = packageName, appName = appName, isBlocked = true))
     }
 
+    suspend fun getDeviceAppsWithStatus(): List<InstalledAppScanner.AppInfoItem> = withContext(Dispatchers.IO) {
+        val currentBlocked = blockedAppDao.getActiveBlockedApps().map { it.packageName }.toSet()
+        appScanner.getInstalledDeviceApps(currentBlocked)
+    }
+
+    suspend fun autoBlockAllDistractions(): Int = withContext(Dispatchers.IO) {
+        val apps = getDeviceAppsWithStatus()
+        val distractions = apps.filter { it.isDistraction }
+        val entities = distractions.map {
+            BlockedAppEntity(packageName = it.packageName, appName = it.appName, isBlocked = true)
+        }
+        blockedAppDao.insertApps(entities)
+        distractions.size
+    }
+
     suspend fun completeOnboarding(studentName: String) {
         val currentStats = userStatsDao.getUserStats() ?: UserStatsEntity()
         userStatsDao.insertOrUpdateStats(
@@ -87,10 +199,6 @@ class StudyRepository(
                 isOnboardingCompleted = true
             )
         )
-    }
-
-    suspend fun addQuestionDirectly(question: QuestionEntity) {
-        questionDao.insertQuestion(question)
     }
 
     suspend fun importQuestionsFromJson(jsonString: String): Result<Int> = withContext(Dispatchers.IO) {
@@ -108,16 +216,13 @@ class StudyRepository(
         }
     }
 
-    /**
-     * Records user answer, updates question solved status & enforces 3-strikes rule.
-     */
     suspend fun recordAnswer(question: QuestionEntity, selectedOptionIndex: Int): AnswerResult {
         val isCorrect = question.correctOptionIndex == selectedOptionIndex
 
-        // Mark question in local DB so it unlocks in the Question Bank and tracks mistakes
         questionDao.markQuestionAnswered(question.id, isCorrect)
-
         userStatsDao.recordAnswer(question.subject, isCorrect)
+
+        calculateAndUpdateMasteryScores()
 
         val updatedStats = userStatsDao.getUserStats() ?: UserStatsEntity()
         if (updatedStats.strikesCount >= 3) {
@@ -135,6 +240,39 @@ class StudyRepository(
             strikesCount = updatedStats.strikesCount,
             penaltyActivated = false,
             explanation = question.explanation
+        )
+    }
+
+    private suspend fun calculateAndUpdateMasteryScores() = withContext(Dispatchers.IO) {
+        val stats = userStatsDao.getUserStats() ?: return@withContext
+        val allProgress = userStatsDao.getAllSubjectProgress().firstOrNull() ?: emptyList()
+
+        var arabicAcc = 0f
+        var englishAcc = 0f
+        var historyAcc = 0f
+        var programmingAcc = 0f
+
+        allProgress.forEach { prog ->
+            when (prog.subject) {
+                "ARABIC" -> arabicAcc = prog.accuracy
+                "ENGLISH" -> englishAcc = prog.accuracy
+                "HISTORY" -> historyAcc = prog.accuracy
+                "PROGRAMMING" -> programmingAcc = prog.accuracy
+            }
+        }
+
+        val totalAnswered = stats.totalAnswered
+        val correctCount = stats.correctCount
+        val overallAcc = if (totalAnswered > 0) (correctCount.toFloat() / totalAnswered.toFloat()) * 100f else 0f
+
+        userStatsDao.insertOrUpdateStats(
+            stats.copy(
+                overallMasteryScore = overallAcc,
+                arabicScore = arabicAcc,
+                englishScore = englishAcc,
+                historyScore = historyAcc,
+                programmingScore = programmingAcc
+            )
         )
     }
 
@@ -196,6 +334,21 @@ class StudyRepository(
         gamesDao.getRandomErrorHunterQuestions(limit)
 
     suspend fun initializeDatabaseIfNeeded() = withContext(Dispatchers.IO) {
+        // 1. Seed Curriculum Lessons
+        if (lessonDao.getLessonCount() == 0) {
+            try {
+                context.assets.open("seed_curriculum.json").use { stream ->
+                    val reader = InputStreamReader(stream)
+                    val type = object : TypeToken<List<LessonEntity>>() {}.type
+                    val lessons: List<LessonEntity> = gson.fromJson(reader, type)
+                    lessonDao.insertLessons(lessons)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Seed Real Curriculum Questions
         if (questionDao.getQuestionCount() == 0) {
             try {
                 context.assets.open("seed_questions.json").use { stream ->
@@ -209,6 +362,7 @@ class StudyRepository(
             }
         }
 
+        // 3. Seed User Stats
         if (userStatsDao.getUserStats() == null) {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
             userStatsDao.insertOrUpdateStats(
@@ -223,7 +377,9 @@ class StudyRepository(
                     snoozeTokensRemaining = 2,
                     lastSnoozeResetDate = today,
                     totalFocusMinutes = 0,
-                    lastActiveDate = today
+                    lastActiveDate = today,
+                    currentLessonId = 101,
+                    unlockedLessonId = 101
                 )
             )
 
@@ -231,7 +387,7 @@ class StudyRepository(
                 userStatsDao.insertSubjectProgress(
                     SubjectProgressEntity(
                         subject = sub,
-                        totalQuestions = 15,
+                        totalQuestions = if (sub == "ARABIC") 16 else 5,
                         answeredCount = 0,
                         correctCount = 0
                     )
@@ -239,20 +395,31 @@ class StudyRepository(
             }
         }
 
-        if (blockedAppDao.getAppCount() == 0) {
-            val defaultBlocked = listOf(
-                BlockedAppEntity("com.instagram.android", "Instagram", true),
-                BlockedAppEntity("com.facebook.katana", "Facebook", true),
-                BlockedAppEntity("com.zhiliaoapp.musically", "TikTok", true),
-                BlockedAppEntity("com.google.android.youtube", "YouTube", true),
-                BlockedAppEntity("com.twitter.android", "X (Twitter)", true),
-                BlockedAppEntity("com.reddit.frontpage", "Reddit", true),
-                BlockedAppEntity("com.snapchat.android", "Snapchat", true),
-                BlockedAppEntity("com.facebook.orca", "Messenger", false)
-            )
-            blockedAppDao.insertApps(defaultBlocked)
+        // 4. Seed and Auto-Detect Blocked Apps (Always include WhatsApp, Telegram, etc.)
+        val defaultBlocked = listOf(
+            BlockedAppEntity("com.whatsapp", "WhatsApp", true),
+            BlockedAppEntity("com.whatsapp.w4b", "WhatsApp Business", true),
+            BlockedAppEntity("org.telegram.messenger", "Telegram", true),
+            BlockedAppEntity("com.facebook.katana", "Facebook", true),
+            BlockedAppEntity("com.facebook.orca", "Messenger", true),
+            BlockedAppEntity("com.instagram.android", "Instagram", true),
+            BlockedAppEntity("com.zhiliaoapp.musically", "TikTok", true),
+            BlockedAppEntity("com.google.android.youtube", "YouTube", true),
+            BlockedAppEntity("com.twitter.android", "X (Twitter)", true),
+            BlockedAppEntity("com.reddit.frontpage", "Reddit", true),
+            BlockedAppEntity("com.snapchat.android", "Snapchat", true),
+            BlockedAppEntity("com.discord", "Discord", true)
+        )
+        blockedAppDao.insertApps(defaultBlocked)
+
+        // Auto scan and add any installed distractions dynamically
+        try {
+            autoBlockAllDistractions()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
+        // 5. Seed Games content
         if (gamesDao.getGrammarPairCount() == 0) {
             val defaultPairs = listOf(
                 GrammarMatchPairEntity(wordOrPhrase = "أبو بكرٍ الصديق", grammaticalRule = "مبتدأ مرفوع بالواو (أسماء خمسة)", category = "ARABIC_NAHW"),
